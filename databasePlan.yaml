@@ -485,10 +485,13 @@ components:
 
     SessionRequest:
       type: object
-      required: [clientId]
+      required: [clientId, password]
       properties:
         clientId:
           type: string
+        password:
+          type: string
+          format: password
 
     Session:
       type: object
