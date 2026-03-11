@@ -78,7 +78,7 @@ paths:
     delete:
       tags: [Auth]
       summary: Delete a session (logout)
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
@@ -90,7 +90,7 @@ paths:
     get:
       tags: [DespatchAdvice]
       summary: List all despatch advices
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -104,7 +104,7 @@ paths:
     post:
       tags: [DespatchAdvice]
       summary: Create a new despatch advice
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -128,6 +128,7 @@ paths:
       summary: Get a despatch advice by document ID
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -143,6 +144,7 @@ paths:
       summary: Update a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -164,6 +166,7 @@ paths:
       summary: Delete a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
@@ -175,7 +178,7 @@ paths:
     get:
       tags: [OrderChange]
       summary: List all order changes
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -189,7 +192,7 @@ paths:
     post:
       tags: [OrderChange]
       summary: Create an order change
-      parameters: 
+      headers: 
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -213,6 +216,7 @@ paths:
       summary: Get an order change by ID
       parameters:
         - $ref: '#/components/parameters/Id'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -228,6 +232,7 @@ paths:
       summary: Update an order change
       parameters:
         - $ref: '#/components/parameters/Id'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -249,6 +254,7 @@ paths:
       summary: Delete an order change
       parameters:
         - $ref: '#/components/parameters/Id'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
@@ -260,7 +266,7 @@ paths:
     get:
       tags: [OrderCancellation]
       summary: List all order cancellations
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -274,7 +280,7 @@ paths:
     post:
       tags: [OrderCancellation]
       summary: Create an order cancellation
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -298,6 +304,7 @@ paths:
       summary: Get an order cancellation by ID
       parameters:
         - $ref: '#/components/parameters/CancellationId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -313,6 +320,7 @@ paths:
       summary: Update an order cancellation
       parameters:
         - $ref: '#/components/parameters/CancellationId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -334,6 +342,7 @@ paths:
       summary: Delete an order cancellation
       parameters:
         - $ref: '#/components/parameters/CancellationId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
@@ -345,7 +354,7 @@ paths:
     get:
       tags: [FulfilmentCancellation]
       summary: List all fulfilment cancellations
-      parameters:
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -359,7 +368,7 @@ paths:
     post:
       tags: [FulfilmentCancellation]
       summary: Create a fulfilment cancellation
-      parameters: 
+      headers: 
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -383,6 +392,7 @@ paths:
       summary: Get a fulfilment cancellation by document ID
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -398,6 +408,7 @@ paths:
       summary: Update a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -419,6 +430,7 @@ paths:
       summary: Delete a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+      headers:
         - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
