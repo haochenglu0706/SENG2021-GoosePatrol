@@ -86,7 +86,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /despatch-advices:
+  /despatch-advices:    # for testing only 
     get:
       tags: [DespatchAdvice]
       summary: List all despatch advices
