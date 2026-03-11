@@ -158,7 +158,6 @@ paths:
       summary: Delete a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
-        - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
           description: Despatch advice deleted
