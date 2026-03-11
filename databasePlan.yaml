@@ -409,7 +409,7 @@ components:
         type: string
     SessionId:
       name: sessionId
-      in: path
+      in: header
       required: true
       schema:
         type: string
