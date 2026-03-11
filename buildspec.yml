@@ -1,0 +1,15 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+  build:
+    commands:
+      - npm install
+      - npm run build
+      - sam build
+      - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+artifacts:
+  files:
+    - '**/*'
