@@ -1,0 +1,695 @@
+openapi: 3.0.3
+info:
+  title: Despatch & Order Management API
+  description: API for managing clients, sessions, despatch advices, order changes, order cancellations, and fulfilment cancellations.
+  version: 1.0.0
+
+tags:
+  - name: Auth
+    description: Client registration and session management
+  - name: DespatchAdvice
+    description: Despatch advice document operations
+  - name: OrderChange
+    description: Order change operations
+  - name: OrderCancellation
+    description: Order cancellation operations
+  - name: FulfilmentCancellation
+    description: Fulfilment cancellation operations
+
+paths:
+
+  /clients:
+    post:
+      tags: [Auth]
+      summary: Register a new client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRequest'
+      responses:
+        '201':
+          description: Client created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /clients/{clientId}:
+    get:
+      tags: [Auth]
+      summary: Get a client by ID
+      parameters:
+        - $ref: '#/components/parameters/ClientId'
+      responses:
+        '200':
+          description: Client found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Client'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions:
+    post:
+      tags: [Auth]
+      summary: Create a new session (login)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{sessionId}:
+    delete:
+      tags: [Auth]
+      summary: Delete a session (logout)
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Session deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /despatch-advices:    # for testing only 
+    get:
+      tags: [DespatchAdvice]
+      summary: List all despatch advices
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: List of despatch advices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DespatchAdvice'
+    post:
+      tags: [DespatchAdvice]
+      summary: Create a new despatch advice
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DespatchAdvice'
+      responses:
+        '201':
+          description: Despatch advice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DespatchAdvice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /despatch-advices/{documentId}:
+    get:
+      tags: [DespatchAdvice]
+      summary: Get a despatch advice by document ID
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Despatch advice found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DespatchAdvice'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [DespatchAdvice]
+      summary: Update a despatch advice
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DespatchAdvice'
+      responses:
+        '200':
+          description: Despatch advice updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DespatchAdvice'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [DespatchAdvice]
+      summary: Delete a despatch advice
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Despatch advice deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /order-changes:
+    get:
+      tags: [OrderChange]
+      summary: List all order changes
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: List of order changes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderChange'
+    post:
+      tags: [OrderChange]
+      summary: Create an order change
+      headers: 
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderChange'
+      responses:
+        '201':
+          description: Order change created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /order-changes/{id}:
+    get:
+      tags: [OrderChange]
+      summary: Get an order change by ID
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Order change found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderChange'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [OrderChange]
+      summary: Update an order change
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderChange'
+      responses:
+        '200':
+          description: Order change updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderChange'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [OrderChange]
+      summary: Delete an order change
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Order change deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /order-cancellations:     # for testing only
+    get:
+      tags: [OrderCancellation]
+      summary: List all order cancellations
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: List of order cancellations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderCancellation'
+    post:
+      tags: [OrderCancellation]
+      summary: Create an order cancellation
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCancellation'
+      responses:
+        '201':
+          description: Order cancellation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCancellation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /order-cancellations/{cancellationId}:
+    get:
+      tags: [OrderCancellation]
+      summary: Get an order cancellation by ID
+      parameters:
+        - $ref: '#/components/parameters/CancellationId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Order cancellation found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCancellation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [OrderCancellation]
+      summary: Update an order cancellation
+      parameters:
+        - $ref: '#/components/parameters/CancellationId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCancellation'
+      responses:
+        '200':
+          description: Order cancellation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderCancellation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [OrderCancellation]
+      summary: Delete an order cancellation
+      parameters:
+        - $ref: '#/components/parameters/CancellationId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Order cancellation deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /fulfilment-cancellations:
+    get:
+      tags: [FulfilmentCancellation]
+      summary: List all fulfilment cancellations
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: List of fulfilment cancellations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FulfilmentCancellation'
+    post:
+      tags: [FulfilmentCancellation]
+      summary: Create a fulfilment cancellation
+      headers: 
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FulfilmentCancellation'
+      responses:
+        '201':
+          description: Fulfilment cancellation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FulfilmentCancellation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /fulfilment-cancellations/{documentId}:
+    get:
+      tags: [FulfilmentCancellation]
+      summary: Get a fulfilment cancellation by document ID
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Fulfilment cancellation found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FulfilmentCancellation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [FulfilmentCancellation]
+      summary: Update a fulfilment cancellation
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FulfilmentCancellation'
+      responses:
+        '200':
+          description: Fulfilment cancellation updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FulfilmentCancellation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [FulfilmentCancellation]
+      summary: Delete a fulfilment cancellation
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      headers:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204':
+          description: Fulfilment cancellation deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+
+  parameters:
+    ClientId:
+      name: clientId
+      in: header
+      required: true
+      schema:
+        type: string
+    SessionId:
+      name: sessionId
+      in: header
+      required: true
+      schema:
+        type: string
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    CancellationId:
+      name: cancellationId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+
+    ClientRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    Client:
+      type: object
+      properties:
+        clientId:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    SessionRequest:
+      type: object
+      required: [clientId, password]
+      properties:
+        clientId:
+          type: string
+        password:
+          type: string
+          format: password
+
+    Session:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        clientId:
+          type: string
+
+    PostalAddress:
+      type: object
+      properties:
+        streetName:
+          type: string
+        buildingName:
+          type: string
+        buildingNumber:
+          type: string
+        cityName:
+          type: string
+        postalZone:
+          type: string
+        country:
+          type: string
+        addressLine:
+          type: string
+        countryIdentificationCode:
+          type: string
+
+    Contact:
+      type: object
+      properties:
+        name:
+          type: string
+        telephone:
+          type: string
+        telefax:
+          type: string
+        email:
+          type: string
+          format: email
+
+    Party:
+      type: object
+      properties:
+        name:
+          type: string
+        postalAddress:
+          $ref: '#/components/schemas/PostalAddress'
+        contact:
+          $ref: '#/components/schemas/Contact'
+
+    DespatchSupplierParty:
+      type: object
+      properties:
+        customerAssignedAccountId:
+          type: string
+        party:
+          $ref: '#/components/schemas/Party'
+
+    DespatchAdvice:
+      type: object
+      properties:
+        documentId:
+          type: string
+        senderId:
+          type: string
+        receiverId:
+          type: string
+        despatchSupplierParty:
+          $ref: '#/components/schemas/DespatchSupplierParty'
+
+    OrderCancellation:
+      type: object
+      properties:
+        cancellationId:
+          type: string
+        documentType:
+          type: string
+        documentId:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        cancelledByUserId:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+
+    OrderChange:
+      type: object
+      properties:
+        id:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        orderReferenceId:
+          type: string
+        changesMade:
+          type: string
+        buyer:
+          $ref: '#/components/schemas/Party'
+        seller:
+          $ref: '#/components/schemas/Party'
+
+    DeliveryPeriod:
+      type: object
+      properties:
+        startDate:
+          type: string
+          format: date
+        startTime:
+          type: string
+          format: time
+        endDate:
+          type: string
+          format: date
+        endTime:
+          type: string
+          format: time
+
+    Delivery:
+      type: object
+      properties:
+        id:
+          type: string
+        deliveryAddress:
+          type: string
+        requestedDeliveryPeriod:
+          $ref: '#/components/schemas/DeliveryPeriod'
+
+    Shipment:
+      type: object
+      properties:
+        id:
+          type: string
+        consignmentId:
+          type: string
+        delivery:
+          $ref: '#/components/schemas/Delivery'
+
+    FulfilmentCancellation:
+      type: object
+      properties:
+        receiverId:
+          type: string
+        submitterId:
+          type: string
+        documentId:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        note:
+          type: string
+        shipment:
+          $ref: '#/components/schemas/Shipment'
