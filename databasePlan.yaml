@@ -90,6 +90,8 @@ paths:
     get:
       tags: [DespatchAdvice]
       summary: List all despatch advices
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: List of despatch advices
@@ -102,6 +104,8 @@ paths:
     post:
       tags: [DespatchAdvice]
       summary: Create a new despatch advice
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -124,6 +128,7 @@ paths:
       summary: Get a despatch advice by document ID
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: Despatch advice found
@@ -138,6 +143,7 @@ paths:
       summary: Update a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -158,6 +164,7 @@ paths:
       summary: Delete a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
           description: Despatch advice deleted
@@ -168,6 +175,8 @@ paths:
     get:
       tags: [OrderChange]
       summary: List all order changes
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: List of order changes
@@ -180,6 +189,8 @@ paths:
     post:
       tags: [OrderChange]
       summary: Create an order change
+      parameters: 
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -202,6 +213,7 @@ paths:
       summary: Get an order change by ID
       parameters:
         - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: Order change found
@@ -216,6 +228,7 @@ paths:
       summary: Update an order change
       parameters:
         - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -236,16 +249,19 @@ paths:
       summary: Delete an order change
       parameters:
         - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
           description: Order change deleted
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /order-cancellations:
+  /order-cancellations:     # for testing only
     get:
       tags: [OrderCancellation]
       summary: List all order cancellations
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: List of order cancellations
@@ -258,6 +274,8 @@ paths:
     post:
       tags: [OrderCancellation]
       summary: Create an order cancellation
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -280,6 +298,7 @@ paths:
       summary: Get an order cancellation by ID
       parameters:
         - $ref: '#/components/parameters/CancellationId'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: Order cancellation found
@@ -294,6 +313,7 @@ paths:
       summary: Update an order cancellation
       parameters:
         - $ref: '#/components/parameters/CancellationId'
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -314,6 +334,7 @@ paths:
       summary: Delete an order cancellation
       parameters:
         - $ref: '#/components/parameters/CancellationId'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
           description: Order cancellation deleted
@@ -324,6 +345,8 @@ paths:
     get:
       tags: [FulfilmentCancellation]
       summary: List all fulfilment cancellations
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: List of fulfilment cancellations
@@ -336,6 +359,8 @@ paths:
     post:
       tags: [FulfilmentCancellation]
       summary: Create a fulfilment cancellation
+      parameters: 
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -358,6 +383,7 @@ paths:
       summary: Get a fulfilment cancellation by document ID
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
           description: Fulfilment cancellation found
@@ -372,6 +398,7 @@ paths:
       summary: Update a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
         content:
@@ -392,6 +419,7 @@ paths:
       summary: Delete a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
           description: Fulfilment cancellation deleted
@@ -403,7 +431,7 @@ components:
   parameters:
     ClientId:
       name: clientId
-      in: path
+      in: header
       required: true
       schema:
         type: string
