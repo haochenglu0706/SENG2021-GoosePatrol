@@ -1,12 +1,12 @@
 {
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1007.0",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "esbuild": "^0.27.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.161",
     "@types/uuid": "^10.0.0",
-    "esbuild": "^0.27.3",
     "typescript": "^5.9.3"
   }
 }
