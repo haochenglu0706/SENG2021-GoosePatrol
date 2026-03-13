@@ -1,0 +1,39 @@
+{
+    "configurations": [
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "lambda-nodejs24.x:HelloWorldFunction (nodejs24.x)",
+            "invokeTarget": {
+                "target": "template",
+                "templatePath": "${workspaceFolder}/lambda-nodejs24.x/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "lambda": {
+                "payload": {},
+                "environmentVariables": {},
+                "runtime": "nodejs24.x"
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "API lambda-nodejs24.x:HelloWorldFunction (nodejs24.x)",
+            "invokeTarget": {
+                "target": "api",
+                "templatePath": "${workspaceFolder}/lambda-nodejs24.x/template.yaml",
+                "logicalId": "HelloWorldFunction"
+            },
+            "api": {
+                "path": "/hello",
+                "httpMethod": "get",
+                "payload": {
+                    "json": {}
+                }
+            },
+            "lambda": {
+                "runtime": "nodejs24.x"
+            }
+        }
+    ]
+}
