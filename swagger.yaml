@@ -1,0 +1,724 @@
+openapi: 3.0.3
+info:
+  title: Despatch & Receipt Advice API
+  version: 1.0.0
+servers:
+- url: /api/v1
+paths:
+  /despatch-advices:
+    get:
+      summary: Get all despatch advices for the authenticated user.
+      operationId: getAllDespatchAdvices
+      parameters:
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: List of despatch advices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DespatchAdviceSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      summary: Creates a new despatch advice document.
+      operationId: createDespatchAdvice
+      parameters:
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DespatchAdviceCreateRequest"
+        required: true
+      responses:
+        "200":
+          description: Despatch advice created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200"
+        "400":
+          $ref: "#/components/responses/InvalidInputData"
+        "404":
+          $ref: "#/components/responses/ReferencedOrderNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /despatch-advices/{despatchAdviceId}:
+    get:
+      summary: Retrieve the complete Despatch Advice document.
+      operationId: getDespatchAdviceById
+      parameters:
+      - name: despatchAdviceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Despatch Advice document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DespatchAdvice"
+        "404":
+          $ref: "#/components/responses/DespatchAdviceNotFound"
+  /despatch-advices/{despatchAdviceId}/status:
+    get:
+      summary: Retrieve the current status of a despatch.
+      operationId: getDespatchAdviceStatus
+      parameters:
+      - name: despatchAdviceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Current status of despatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_1"
+        "404":
+          $ref: "#/components/responses/DespatchAdviceNotFound"
+  /despatch-advices/{despatchAdviceId}/cancel:
+    post:
+      summary: Fulfilment cancellation of a despatch.
+      operationId: cancelDespatchAdvice
+      parameters:
+      - name: despatchAdviceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FulfilmentCancellationCreateRequest"
+        required: true
+      responses:
+        "200":
+          description: Fulfilment cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_2"
+        "404":
+          $ref: "#/components/responses/DespatchAdviceNotFound"
+        "409":
+          description: Already received / Already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /despatch-advices/{despatchAdviceId}/receipt-advices:
+    post:
+      summary: Delivery party confirms receipt or reports discrepancies.
+      operationId: createReceiptAdvice
+      parameters:
+      - name: despatchAdviceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptAdviceCreateRequest"
+        required: true
+      responses:
+        "200":
+          description: Receipt advice created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_3"
+        "404":
+          $ref: "#/components/responses/DespatchAdviceNotFound"
+        "409":
+          description: Already fully received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /receipt-advices/{receiptAdviceId}:
+    get:
+      summary: Obtain the Receipt Advice document.
+      operationId: getReceiptAdviceById
+      parameters:
+      - name: receiptAdviceId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Receipt Advice document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptAdvice"
+        "404":
+          $ref: "#/components/responses/ReceiptAdviceNotFound"
+components:
+  schemas:
+    ErrorResponse:
+      required:
+      - error
+      - message
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+    DespatchAdviceCreateRequest:
+      required:
+      - copyIndicator
+      - deliveryCustomerParty
+      - despatchLines
+      - despatchSupplierParty
+      - documentID
+      - documentStatusCode
+      - issueDate
+      - orderReference
+      - receiverId
+      - senderId
+      - shipment
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        documentID:
+          type: string
+        senderId:
+          type: string
+        receiverId:
+          type: string
+        copyIndicator:
+          type: boolean
+        replaces:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        documentStatusCode:
+          type: string
+        orderReference:
+          $ref: "#/components/schemas/OrderReference"
+        despatchAdviceTypeCode:
+          type: string
+          default: delivery
+        note:
+          type: string
+        despatchSupplierParty:
+          $ref: "#/components/schemas/DespatchSupplierParty"
+        deliveryCustomerParty:
+          $ref: "#/components/schemas/DeliveryCustomerParty"
+        shipment:
+          $ref: "#/components/schemas/Shipment"
+        despatchLines:
+          minItems: 1
+          type: array
+          items:
+            $ref: "#/components/schemas/DespatchLine"
+    ReceiptAdviceCreateRequest:
+      required:
+      - copyIndicator
+      - deliveryCustomerParty
+      - despatchSupplierParty
+      - documentID
+      - documentStatusCode
+      - orderReference
+      - receiptLines
+      - receiverId
+      - senderId
+      - shipment
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        documentID:
+          type: string
+        senderId:
+          type: string
+        receiverId:
+          type: string
+        copyIndicator:
+          type: boolean
+        replaces:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        documentStatusCode:
+          type: string
+        note:
+          type: string
+        orderReference:
+          $ref: "#/components/schemas/OrderReference"
+        despatchDocumentReference:
+          $ref: "#/components/schemas/DocumentReference"
+        deliveryCustomerParty:
+          $ref: "#/components/schemas/DeliveryCustomerParty"
+        despatchSupplierParty:
+          $ref: "#/components/schemas/DespatchSupplierParty"
+        shipment:
+          $ref: "#/components/schemas/ReceiptAdviceShipment"
+        receiptLines:
+          minItems: 1
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptLine"
+    FulfilmentCancellationCreateRequest:
+      required:
+      - documentId
+      - issueDate
+      - receiverId
+      - shipment
+      - submitterId
+      type: object
+      properties:
+        receiverId:
+          type: string
+        submitterId:
+          type: string
+        documentId:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        note:
+          type: string
+        shipment:
+          $ref: "#/components/schemas/Shipment"
+    DespatchSupplierParty:
+      required:
+      - party
+      type: object
+      properties:
+        customerAssignedAccountId:
+          type: string
+        party:
+          $ref: "#/components/schemas/Party"
+    DeliveryCustomerParty:
+      required:
+      - party
+      type: object
+      properties:
+        customerAssignedAccountId:
+          type: string
+        supplierAssignedAccountId:
+          type: string
+        party:
+          $ref: "#/components/schemas/Party"
+    Party:
+      required:
+      - name
+      - postalAddress
+      type: object
+      properties:
+        name:
+          type: string
+        postalAddress:
+          $ref: "#/components/schemas/PostalAddress"
+        contact:
+          $ref: "#/components/schemas/Contact"
+    PostalAddress:
+      required:
+      - cityName
+      - countryIdentificationCode
+      - postalZone
+      - streetName
+      type: object
+      properties:
+        streetName:
+          type: string
+        buildingName:
+          type: string
+        buildingNumber:
+          type: string
+        cityName:
+          type: string
+        postalZone:
+          type: string
+        countrySubentity:
+          type: string
+        addressLine:
+          type: string
+        countryIdentificationCode:
+          maxLength: 2
+          minLength: 2
+          type: string
+          example: AU
+    Contact:
+      type: object
+      properties:
+        name:
+          type: string
+        telephone:
+          type: string
+        telefax:
+          type: string
+        email:
+          type: string
+    Shipment:
+      required:
+      - consignmentId
+      - delivery
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+        consignmentId:
+          type: string
+        delivery:
+          $ref: "#/components/schemas/Delivery"
+    Delivery:
+      required:
+      - deliveryAddress
+      - requestedDeliveryPeriod
+      type: object
+      properties:
+        id:
+          type: string
+        deliveryAddress:
+          $ref: "#/components/schemas/PostalAddress"
+        requestedDeliveryPeriod:
+          $ref: "#/components/schemas/DeliveryPeriod"
+    DeliveryPeriod:
+      required:
+      - endDate
+      - startDate
+      type: object
+      properties:
+        startDate:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endDate:
+          type: string
+          format: date
+        endTime:
+          type: string
+    ReceiptAdviceShipment:
+      required:
+      - consignmentId
+      - delivery
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+        consignmentId:
+          type: string
+        delivery:
+          $ref: "#/components/schemas/ReceiptDelivery"
+    ReceiptDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+        quantity:
+          type: number
+        quantityUnitCode:
+          type: string
+        actualDeliveryDate:
+          type: string
+          format: date
+        actualDeliveryTime:
+          type: string
+        requestedDeliveryPeriod:
+          $ref: "#/components/schemas/DeliveryPeriod"
+    DespatchLine:
+      required:
+      - deliveredQuantity
+      - deliveredQuantityUnitCode
+      - id
+      - item
+      - orderLineReference
+      type: object
+      properties:
+        id:
+          type: string
+        note:
+          type: string
+        lineStatusCode:
+          type: string
+        deliveredQuantity:
+          type: number
+        deliveredQuantityUnitCode:
+          type: string
+          example: EA
+        backorderQuantity:
+          type: number
+        backorderQuantityUnitCode:
+          type: string
+        backorderReason:
+          type: string
+        orderLineReference:
+          $ref: "#/components/schemas/OrderLineReference"
+        item:
+          $ref: "#/components/schemas/Item"
+    ReceiptLine:
+      required:
+      - id
+      - item
+      - receivedQuantity
+      - receivedQuantityUnitCode
+      type: object
+      properties:
+        id:
+          type: string
+        note:
+          type: string
+        receivedQuantity:
+          type: number
+        receivedQuantityUnitCode:
+          type: string
+        shortQuantity:
+          type: number
+        shortQuantityUnitCode:
+          type: string
+        item:
+          $ref: "#/components/schemas/Item"
+    OrderLineReference:
+      required:
+      - lineId
+      - orderReference
+      type: object
+      properties:
+        lineId:
+          type: string
+        salesOrderLineId:
+          type: string
+        orderReference:
+          $ref: "#/components/schemas/OrderReference"
+    OrderReference:
+      required:
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+        salesOrderId:
+          type: string
+        uuid:
+          type: string
+        issueDate:
+          type: string
+          format: date
+    DocumentReference:
+      required:
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+        uuid:
+          type: string
+        issueDate:
+          type: string
+          format: date
+    Item:
+      required:
+      - description
+      - name
+      type: object
+      properties:
+        description:
+          type: string
+        name:
+          type: string
+        buyersItemIdentification:
+          $ref: "#/components/schemas/ItemIdentification"
+        sellersItemIdentification:
+          $ref: "#/components/schemas/ItemIdentification"
+        itemInstance:
+          $ref: "#/components/schemas/ItemInstance"
+    ItemIdentification:
+      required:
+      - id
+      type: object
+      properties:
+        id:
+          type: string
+    ItemInstance:
+      type: object
+      properties:
+        lotIdentification:
+          $ref: "#/components/schemas/LotIdentification"
+    LotIdentification:
+      type: object
+      properties:
+        lotNumberId:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+    DespatchAdviceSummary:
+      type: object
+      properties:
+        documentId:
+          type: string
+        status:
+          type: string
+          enum:
+          - DESPATCHED
+          - RECEIVED
+          - FULFILMENT_CANCELLED
+        issueDate:
+          type: string
+          format: date
+        senderId:
+          type: string
+        receiverId:
+          type: string
+    DespatchAdvice:
+      allOf:
+      - $ref: "#/components/schemas/DespatchAdviceCreateRequest"
+      - required:
+        - status
+        - uuid
+        type: object
+        properties:
+          uuid:
+            type: string
+            format: uuid
+          status:
+            type: string
+            enum:
+            - DESPATCHED
+            - RECEIVED
+            - FULFILMENT_CANCELLED
+    ReceiptAdvice:
+      allOf:
+      - $ref: "#/components/schemas/ReceiptAdviceCreateRequest"
+      - required:
+        - uuid
+        type: object
+        properties:
+          uuid:
+            type: string
+            format: uuid
+    inline_response_200:
+      type: object
+      properties:
+        documentId:
+          type: string
+        status:
+          type: string
+          enum:
+          - DESPATCHED
+    inline_response_200_1:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - DESPATCHED
+          - RECEIVED
+          - FULFILMENT_CANCELLED
+    inline_response_200_2:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - FULFILMENT_CANCELLED
+    inline_response_200_3:
+      type: object
+      properties:
+        receiptAdviceId:
+          type: string
+  responses:
+    InvalidInputData:
+      description: Invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ReferencedOrderNotFound:
+      description: Referenced order not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalServerError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    DespatchAdviceNotFound:
+      description: Despatch Advice not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ReceiptAdviceNotFound:
+      description: Receipt Advice not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
