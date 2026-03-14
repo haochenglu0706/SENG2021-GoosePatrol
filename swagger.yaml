@@ -68,6 +68,11 @@ paths:
         required: true
         schema:
           type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           description: Despatch Advice document
@@ -87,6 +92,11 @@ paths:
         required: true
         schema:
           type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           description: Current status of despatch
@@ -103,6 +113,11 @@ paths:
       parameters:
       - name: despatchAdviceId
         in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
         required: true
         schema:
           type: string
@@ -137,6 +152,11 @@ paths:
         required: true
         schema:
           type: string
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -165,6 +185,11 @@ paths:
       parameters:
       - name: receiptAdviceId
         in: path
+        required: true
+        schema:
+          type: string
+      - name: sessionId
+        in: query
         required: true
         schema:
           type: string
