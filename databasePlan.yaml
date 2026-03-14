@@ -677,6 +677,24 @@ components:
         delivery:
           $ref: '#/components/schemas/Delivery'
 
+    ReceiptLine:
+      type: object
+      properties:
+        id:
+          type: string
+        note:
+          type: string
+        receivedQuantity:
+          type: number
+        receivedQuantityUnitCode:
+          type: string
+        shortQuantity:
+          type: number
+        shortQuantityUnitCode:
+          type: string
+        item: 
+          type: Item
+
     FulfilmentCancellation:
       type: object
       properties:
