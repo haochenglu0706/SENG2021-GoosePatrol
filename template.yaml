@@ -17,8 +17,8 @@ Resources: #add more routes here using this format
   DespatchAdviceFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/handlers/
-      Handler: despatchAdvice.handler
+      CodeUri: src/
+      Handler: dist/handler.lambdaHandler
       Runtime: nodejs24.x
       Architectures:
         - x86_64
@@ -41,7 +41,7 @@ Resources: #add more routes here using this format
         Target: es2020
         Sourcemap: true
         EntryPoints:
-          - despatchAdvice.ts
+          - handler.ts
 
   DocumentsTable:
     Type: AWS::DynamoDB::Table
