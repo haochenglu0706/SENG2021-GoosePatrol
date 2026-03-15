@@ -30,14 +30,32 @@ export async function route(event: any) {
     return despatch.createDespatchAdvice(event);
   }
 
-  // GET /despatch-advices/{despatchId}
-  const despatchAdviceMatch = path.match(/^\/despatch-advices\/([^/]+)$/);
-  if (method === "GET" && despatchAdviceMatch) {
-    event.pathParameters = {
-      ...event.pathParameters,
-      despatchId: despatchAdviceMatch[1],
-    };
-    return despatch.getDespatchAdvice(event);
+  // Despatch advice item routes (/despatch-advices/{documentId})
+
+  if (path.startsWith("/despatch-advices/")) {
+    const documentId = path.substring("/despatch-advices/".length);
+    const sessionId =
+      event.headers?.sessionId ??
+      event.headers?.sessionid ??
+      event.headers?.["session-id"];
+
+    if (method === "PUT") {
+      return despatch.updateDespatchAdvice(event, documentId, sessionId);
+    }
+
+    if (method === "DELETE") {
+      return despatch.deleteDespatchAdvice(event, documentId, sessionId);
+    }
+
+    // GET /despatch-advices/{despatchId}
+    const despatchAdviceMatch = path.match(/^\/despatch-advices\/([^/]+)$/);
+    if (method === "GET" && despatchAdviceMatch) {
+      event.pathParameters = {
+        ...event.pathParameters,
+        despatchId: despatchAdviceMatch[1],
+      };
+      return despatch.getDespatchAdvice(event);
+    }
   }
 
   // RECEIPT ADVICE ROUTES

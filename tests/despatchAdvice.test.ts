@@ -9,11 +9,20 @@ jest.unstable_mockModule("../src/db.js", () => ({
     DESPATCH_ADVICES_TABLE: "DespatchAdvices",
 }));
 
+jest.unstable_mockModule("../src/routes/auth.js", () => ({
+    verifySession: jest.fn(),
+}));
+
 const { createDespatchAdvice, getDespatchAdvice, updateDespatchAdvice,
     listDespatchAdvices, deleteDespatchAdvice, cancelFulfilment } = await import("../src/routes/despatchAdvice.js");
 const { dynamo } = await import("../src/db.js");
+const { verifySession } = await import("../src/routes/auth.js");
 
 const mockSend = dynamo.send as ReturnType<typeof jest.fn>;
+const mockVerifySession =
+    verifySession as unknown as jest.MockedFunction<
+        (sessionId: string | undefined) => Promise<string | false>
+    >;
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Shared fixtures /////////////////////////////////////
@@ -51,6 +60,7 @@ const VALID_DESPATCH_ADVICE = {
 
 // What DynamoDB returns when a document is found (PutItem/GetItem response)
 const MOCK_DYNAMODB_ITEM = {
+    despatchAdviceId: { S: "abc-123" },
     documentId: { S: "DA-001" },
     senderId: { S: "sender-123" },
     receiverId: { S: "receiver-456" },
@@ -91,6 +101,7 @@ const MOCK_DYNAMODB_ITEM = {
 describe("despatchAdvice", () => {
     beforeEach(() => {
         mockSend.mockReset();
+        mockVerifySession.mockReset();
     });
 
     /// /////////////////////////////////////////////////////////////////////////
@@ -574,6 +585,100 @@ describe("despatchAdvice", () => {
             const body = JSON.parse(result.body);
  
             expect(body).toHaveProperty("message");
+        });
+    });
+
+    /// /////////////////////////////////////////////////////////////////////////
+    /// ////////////////////// updateDespatchAdvice /////////////////////////////
+    /// /////////////////////////////////////////////////////////////////////////
+
+    describe("updateDespatchAdvice", () => {
+        test("returns 401 when session is missing or invalid", async () => {
+            mockVerifySession.mockResolvedValueOnce(false);
+
+            const res = await updateDespatchAdvice(VALID_DESPATCH_ADVICE, "DA-001", undefined);
+
+            expect(res.statusCode).toBe(401);
+            expect(mockSend).not.toHaveBeenCalled();
+        });
+
+        test("returns 400 when path documentId and body documentId differ", async () => {
+            mockVerifySession.mockResolvedValueOnce("client-123");
+
+            const body = { ...VALID_DESPATCH_ADVICE, documentId: "OTHER-ID" };
+            const res = await updateDespatchAdvice(body, "DA-001", "session-123");
+
+            expect(res.statusCode).toBe(400);
+            expect(mockSend).not.toHaveBeenCalled();
+        });
+
+        test("returns 404 when despatch advice does not exist", async () => {
+            mockVerifySession.mockResolvedValueOnce("client-123");
+            mockSend.mockResolvedValueOnce({ Items: [] });
+
+            const res = await updateDespatchAdvice(VALID_DESPATCH_ADVICE, "DA-001", "session-123");
+
+            expect(res.statusCode).toBe(404);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+        });
+
+        test("returns 200 and updates when despatch advice exists and user is authorised", async () => {
+            mockVerifySession.mockResolvedValueOnce("sender-123");
+            mockSend
+                .mockResolvedValueOnce({ Items: [MOCK_DYNAMODB_ITEM] }) // Scan
+                .mockResolvedValueOnce({}); // PutItem
+
+            const res = await updateDespatchAdvice(VALID_DESPATCH_ADVICE, "DA-001", "session-123");
+
+            expect(res.statusCode).toBe(200);
+            expect(mockSend).toHaveBeenCalledTimes(2);
+        });
+    });
+
+    /// /////////////////////////////////////////////////////////////////////////
+    /// ////////////////////// deleteDespatchAdvice /////////////////////////////
+    /// /////////////////////////////////////////////////////////////////////////
+
+    describe("deleteDespatchAdvice", () => {
+        test("returns 401 when session is missing or invalid", async () => {
+            mockVerifySession.mockResolvedValueOnce(false);
+
+            const res = await deleteDespatchAdvice({}, "DA-001", undefined);
+
+            expect(res.statusCode).toBe(401);
+            expect(mockSend).not.toHaveBeenCalled();
+        });
+
+        test("returns 404 when despatch advice does not exist", async () => {
+            mockVerifySession.mockResolvedValueOnce("client-123");
+            mockSend.mockResolvedValueOnce({ Items: [] });
+
+            const res = await deleteDespatchAdvice({}, "DA-001", "session-123");
+
+            expect(res.statusCode).toBe(404);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+        });
+
+        test("returns 401 when caller is not allowed to delete", async () => {
+            mockVerifySession.mockResolvedValueOnce("some-other-client");
+            mockSend.mockResolvedValueOnce({ Items: [MOCK_DYNAMODB_ITEM] });
+
+            const res = await deleteDespatchAdvice({}, "DA-001", "session-123");
+
+            expect(res.statusCode).toBe(401);
+            expect(mockSend).toHaveBeenCalledTimes(1);
+        });
+
+        test("returns 204 when despatch advice is successfully deleted", async () => {
+            mockVerifySession.mockResolvedValueOnce("sender-123");
+            mockSend
+                .mockResolvedValueOnce({ Items: [MOCK_DYNAMODB_ITEM] }) // Scan
+                .mockResolvedValueOnce({}); // DeleteItem
+
+            const res = await deleteDespatchAdvice({}, "DA-001", "session-123");
+
+            expect(res.statusCode).toBe(204);
+            expect(mockSend).toHaveBeenCalledTimes(2);
         });
     });
 
