@@ -77,12 +77,12 @@ Resources:
         UpdateDespatchAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advices/{documentId}
+            Path: /despatch-advices/{despatchId}
             Method: put
         DeleteDespatchAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advices/{documentId}
+            Path: /despatch-advices/{despatchId}
             Method: delete
         CancelFulfilment:
           Type: Api
