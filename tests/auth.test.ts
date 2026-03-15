@@ -20,8 +20,68 @@ describe("auth", () => {
   });
 
   describe("login", () => {
+    test("returns 400 when body is invalid JSON", async () => {
+      const res = await login({ body: "not json {" });
+      expect(res.statusCode).toBe(400);
+    });
+
     test("returns 401 when username and password are missing", async () => {
       const res = await login({});
+      expect(res.statusCode).toBe(401);
+    });
+
+    test("returns 401 when username or password are not strings", async () => {
+      const res = await login({
+        body: JSON.stringify({ username: 123, password: "pass1234" }),
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    test("returns 401 when username is empty or whitespace", async () => {
+      const res = await login({
+        body: JSON.stringify({ username: "   ", password: "goodPass1" }),
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    test("returns 401 when user not found", async () => {
+      mockSend.mockResolvedValueOnce({ Items: [] });
+
+      const res = await login({
+        body: JSON.stringify({ username: "nobody", password: "goodPass1" }),
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+
+    test("returns 401 when client item is missing", async () => {
+      mockSend.mockResolvedValueOnce({ Items: [null] });
+
+      const res = await login({
+        body: JSON.stringify({ username: "alice", password: "goodPass1" }),
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+
+    test("returns 401 when password is wrong", async () => {
+      const salt = randomBytes(16);
+      const key = scryptSync("goodPass1", salt, 64);
+      const storedHash = `${salt.toString("hex")}:${key.toString("hex")}`;
+      mockSend.mockResolvedValueOnce({
+        Items: [
+          {
+            clientId: { S: "client-123" },
+            username: { S: "alice" },
+            passwordHash: { S: storedHash },
+          },
+        ],
+      });
+
+      const res = await login({
+        body: JSON.stringify({ username: "alice", password: "wrongPass1" }),
+      });
+
       expect(res.statusCode).toBe(401);
     });
 
