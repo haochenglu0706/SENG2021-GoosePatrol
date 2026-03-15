@@ -30,19 +30,22 @@ export async function route(event: any) {
     return despatch.createDespatchAdvice(event);
   }
 
-  // RECEIPT ADVICE ROUTES
- 
-  // POST /despatch-advices/{despatchAdviceId}/receipt-advices
-  const receiptAdviceCreateMatch = path.match(
-    /^\/despatch-advices\/([^/]+)\/receipt-advices$/
-  );
-  if (method === "POST" && receiptAdviceCreateMatch) {
-    // Inject the path parameter so the handler can read it uniformly
-    event.pathParameters = {
-      ...event.pathParameters,
-      despatchAdviceId: receiptAdviceCreateMatch[1],
-    };
-    return receipt.createReceiptAdvice(event);
+  // Despatch advice item routes (/despatch-advices/{documentId})
+
+  if (path.startsWith("/despatch-advices/")) {
+    const documentId = path.substring("/despatch-advices/".length);
+    const sessionId =
+      event.headers?.sessionId ??
+      event.headers?.sessionid ??
+      event.headers?.["session-id"];
+
+    if (method === "PUT") {
+      return despatch.updateDespatchAdvice(event, documentId, sessionId);
+    }
+
+    if (method === "DELETE") {
+      return despatch.deleteDespatchAdvice(event, documentId, sessionId);
+    }
   }
 
   return {
