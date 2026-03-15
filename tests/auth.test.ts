@@ -114,9 +114,34 @@ describe("auth", () => {
   });
 
   describe("logout", () => {
-    test("returns 501 Not Implemented", async () => {
-      const res = await logout({});
-      expect(res.statusCode).toBe(501);
+    test("returns 404 when sessionId is missing", async () => {
+      const res = await logout({ pathParameters: {} });
+      expect(res.statusCode).toBe(404);
+    });
+
+    test("returns 404 when session does not exist", async () => {
+      mockSend.mockResolvedValueOnce({ Item: undefined });
+
+      const res = await logout({
+        pathParameters: { sessionId: "nonexistent-session" },
+      });
+
+      expect(res.statusCode).toBe(404);
+    });
+
+    test("returns 204 and deletes session when session exists", async () => {
+      mockSend
+        .mockResolvedValueOnce({
+          Item: { sessionId: { S: "valid-session" }, clientId: { S: "client-1" } },
+        })
+        .mockResolvedValueOnce({});
+
+      const res = await logout({
+        pathParameters: { sessionId: "valid-session" },
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(mockSend).toHaveBeenCalledTimes(2);
     });
   });
 

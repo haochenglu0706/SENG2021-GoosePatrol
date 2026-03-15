@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync } from "crypto";
-import { PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, CLIENTS_TABLE, SESSIONS_TABLE } from "../db.js";
@@ -24,6 +24,33 @@ function verifyPassword(password: string, storedHash: string): boolean {
   const salt = Buffer.from(saltHex, "hex");
   const key = scryptSync(password, salt, 64);
   return key.toString("hex") === keyHex;
+}
+
+/**
+ * Verifies that a session exists and returns the user ID (clientId) for it.
+ * @param sessionId - The session ID (e.g. from a request header).
+ * @returns The clientId (userId) if the session is valid, or false if missing/invalid.
+ */
+export async function verifySession(
+  sessionId: string | undefined
+): Promise<string | false> {
+  if (typeof sessionId !== "string" || !sessionId.trim()) {
+    return false;
+  }
+  const result = await dynamo.send(
+    new GetItemCommand({
+      TableName: SESSIONS_TABLE,
+      Key: marshall({ sessionId: sessionId.trim() }),
+    })
+  );
+  if (!result.Item) {
+    return false;
+  }
+  const { clientId } = unmarshall(result.Item) as { clientId?: string };
+  if (typeof clientId !== "string") {
+    return false;
+  }
+  return clientId;
 }
 
 export async function login(event: any) {
@@ -221,11 +248,41 @@ export async function register(event: any) {
 }
 
 export async function logout(event: any) {
+  const sessionId =
+    event.pathParameters?.sessionId ?? event.pathParameters?.sessionid;
+  if (typeof sessionId !== "string" || !sessionId.trim()) {
+    return {
+      statusCode: 404,
+      body: JSON.stringify({
+        error: "NotFound",
+        message: "Session not found",
+      }),
+    };
+  }
+  const trimmed = sessionId.trim();
+  const existing = await dynamo.send(
+    new GetItemCommand({
+      TableName: SESSIONS_TABLE,
+      Key: marshall({ sessionId: trimmed }),
+    })
+  );
+  if (!existing.Item) {
+    return {
+      statusCode: 404,
+      body: JSON.stringify({
+        error: "NotFound",
+        message: "Session not found",
+      }),
+    };
+  }
+  await dynamo.send(
+    new DeleteItemCommand({
+      TableName: SESSIONS_TABLE,
+      Key: marshall({ sessionId: trimmed }),
+    })
+  );
   return {
-    statusCode: 501,
-    body: JSON.stringify({
-      error: "NotImplemented",
-      message: "logout route is not implemented yet",
-    }),
+    statusCode: 204,
+    body: "",
   };
 }
