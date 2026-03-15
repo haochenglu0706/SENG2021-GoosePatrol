@@ -125,3 +125,218 @@ sam delete --stack-name SENG2021-GoosePatrol
 See the [AWS SAM developer guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for an introduction to SAM specification, the SAM CLI, and serverless application concepts.
 
 Next, you can use AWS Serverless Application Repository to deploy ready to use Apps that go beyond hello world samples and learn how authors developed their applications: [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/)
+
+# GoosePatrol - Delivery API (MVP)
+
+Despatch & Order Management API built on AWS Lambda + DynamoDB.
+
+**Base URL:** `https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod`
+
+---
+
+## Prerequisites
+
+- [curl](https://curl.se/) or any HTTP client (Postman, Insomnia, etc.)
+- AWS CLI configured with valid credentials (for verifying DynamoDB writes)
+
+---
+
+## Quick Start
+
+### Step 1 — Register a new client
+
+Create a new account with a username and password.
+
+**Password requirements:** at least 8 characters, must contain at least one letter and one digit.
+
+```bash
+curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/clients \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "your-username",
+    "password": "YourPassword1"
+  }'
+```
+
+**Success response `201`:**
+```json
+{
+  "clientId": "a5826458-81e6-41cd-9a80-585c61838f00",
+  "username": "your-username"
+}
+```
+
+**Error responses:**
+| Status | Reason |
+|--------|--------|
+| `400` | Missing username or password, weak password, or username already taken |
+
+---
+
+### Step 2 — Create a session (login)
+
+Use your username and password to obtain a `sessionId`. This is required for all despatch advice requests.
+
+```bash
+curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "your-username",
+    "password": "YourPassword1"
+  }'
+```
+
+**Success response `201`:**
+```json
+{
+  "sessionId": "1b8b79d9-cb5f-44ea-9fb0-4cf5d9642a12",
+  "clientId": "a5826458-81e6-41cd-9a80-585c61838f00"
+}
+```
+
+**Copy the `sessionId`** — you will pass it as a header on all subsequent requests.
+
+**Error responses:**
+| Status | Reason |
+|--------|--------|
+| `401` | Invalid username or password |
+
+---
+
+### Step 3 — Create a despatch advice
+
+Submit a new despatch advice document. Pass the `sessionId` from Step 2 as a request header.
+
+```bash
+curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/despatch-advices \
+  -H "Content-Type: application/json" \
+  -H "sessionId: 1b8b79d9-cb5f-44ea-9fb0-4cf5d9642a12" \
+  -d '{
+    "documentId": "DA-001",
+    "senderId": "sender-123",
+    "receiverId": "receiver-456",
+    "despatchSupplierParty": {
+      "customerAssignedAccountId": "account-123",
+      "party": {
+        "name": "Acme Supplies",
+        "postalAddress": {
+          "streetName": "1 Warehouse Rd",
+          "buildingName": "Acme HQ",
+          "buildingNumber": "1",
+          "cityName": "Sydney",
+          "postalZone": "2000",
+          "country": "Australia",
+          "addressLine": "Level 1",
+          "countryIdentificationCode": "AU"
+        },
+        "contact": {
+          "name": "Jane Smith",
+          "telephone": "0412345678",
+          "telefax": "0298765432",
+          "email": "jane@acme.com"
+        }
+      }
+    }
+  }'
+```
+
+**Success response `201`:**
+```json
+{
+  "despatchAdviceId": "f3a2b1c4-...",
+  "documentId": "DA-001",
+  "senderId": "sender-123",
+  "receiverId": "receiver-456",
+  "despatchSupplierParty": {
+    "customerAssignedAccountId": "account-123",
+    "party": {
+      "name": "Acme Supplies",
+      "postalAddress": {
+        "streetName": "1 Warehouse Rd",
+        "cityName": "Sydney",
+        "postalZone": "2000",
+        "countryIdentificationCode": "AU"
+      }
+    }
+  }
+}
+```
+
+The `despatchAdviceId` in the response is the auto-generated UUID used as the DynamoDB partition key.
+
+**Error responses:**
+| Status | Reason |
+|--------|--------|
+| `400` | Missing required fields (`documentId`, `senderId`, `receiverId`, `despatchSupplierParty`) |
+| `401` | Missing or invalid `sessionId` header |
+| `409` | A despatch advice with the same `documentId` already exists |
+| `500` | Internal server error |
+
+**Required fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `documentId` | string | User-provided despatch advice number |
+| `senderId` | string | ID of the sending party |
+| `receiverId` | string | ID of the receiving party |
+| `despatchSupplierParty.party.name` | string | Name of the supplying party |
+
+All other fields (`postalAddress`, `contact`, `customerAssignedAccountId`) are optional.
+
+---
+
+### Step 4 — Verify the record in DynamoDB
+
+Confirm the despatch advice was written to the database:
+
+```bash
+aws dynamodb scan \
+  --table-name DespatchAdvices \
+  --region ap-southeast-2 \
+  --query "Items[*].{despatchAdviceId:despatchAdviceId.S, documentId:documentId.S, senderId:senderId.S}"
+```
+
+Expected output:
+```json
+[
+  {
+    "despatchAdviceId": "f3a2b1c4-...",
+    "documentId": "DA-001",
+    "senderId": "sender-123"
+  }
+]
+```
+
+---
+
+## Running Tests
+
+```bash
+# Run all tests
+NODE_OPTIONS=--experimental-vm-modules npx jest
+
+# Run despatch advice tests only
+NODE_OPTIONS=--experimental-vm-modules npx jest despatchAdvice.test.ts
+
+# Run with coverage report
+NODE_OPTIONS=--experimental-vm-modules npx jest --coverage
+```
+
+---
+
+## Local Development
+
+**Start DynamoDB locally:**
+```bash
+docker run -p 8000:8000 amazon/dynamodb-local
+```
+
+**Create tables locally:**
+```bash
+node dynamodb_setup.mjs
+```
+
+**Build and deploy to AWS:**
+```bash
+sam build && sam deploy
+```
