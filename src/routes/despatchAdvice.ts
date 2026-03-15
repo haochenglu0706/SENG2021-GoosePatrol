@@ -2,6 +2,7 @@ import { PutItemCommand, GetItemCommand, ScanCommand, DeleteItemCommand, UpdateI
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
+import { verifySession } from "./auth.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Types (from swagger.yaml) ////////////////////////////
@@ -252,6 +253,200 @@ export async function getDespatchAdvice(event: any) {
     }
 }
 
+export async function updateDespatchAdvice(
+    event: any,
+    documentId: string,
+    sessionId: string | undefined
+) {
+    // authorisation: session must exist
+    const clientId = await verifySession(sessionId);
+    if (!clientId) {
+        return {
+            statusCode: 401,
+            body: JSON.stringify({
+                error: "Unauthorized",
+                message: "Invalid or missing session",
+            }),
+        };
+    }
+
+    // parse body — supports both direct object (tests) and Lambda event
+    const { body, error: parseError } = parseBody(event);
+    if (parseError) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({
+                error: "BadRequest",
+                message: parseError,
+            }),
+        };
+    }
+
+    // ensure path ID and body ID are consistent (when both provided)
+    if (body.documentId && body.documentId !== documentId) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({
+                error: "BadRequest",
+                message: "documentId in path and body must match",
+            }),
+        };
+    }
+
+    // always use the path parameter as the canonical documentId
+    body.documentId = documentId;
+
+    // validate required fields according to swagger schema
+    const validationError = validateDespatchAdvice(body);
+    if (validationError) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({
+                error: "BadRequest",
+                message: validationError,
+            }),
+        };
+    }
+
+    try {
+        // look up existing item by documentId
+        const scanResult = await dynamo.send(
+            new ScanCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                FilterExpression: "documentId = :d",
+                ExpressionAttributeValues: marshall({ ":d": documentId }),
+                Limit: 1,
+            })
+        );
+
+        if (!scanResult.Items || scanResult.Items.length === 0) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({
+                    error: "NotFound",
+                    message: "Despatch advice not found",
+                }),
+            };
+        }
+
+        const existing = unmarshall(scanResult.Items[0]) as any;
+
+        // optional: simple ownership check — only allow sender to update
+        if (existing.senderId && existing.senderId !== body.senderId) {
+            return {
+                statusCode: 401,
+                body: JSON.stringify({
+                    error: "Unauthorized",
+                    message: "You are not allowed to modify this despatch advice",
+                }),
+            };
+        }
+
+        // sanitise the incoming body according to swagger schema
+        const updated = sanitiseDespatchAdvice(body) as any;
+
+        // preserve primary key and any existing status field
+        updated.despatchAdviceId = existing.despatchAdviceId;
+        if (existing.status !== undefined) {
+            updated.status = existing.status;
+        }
+
+        await dynamo.send(
+            new PutItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Item: marshall(updated, { removeUndefinedValues: true }),
+                ConditionExpression: "attribute_exists(despatchAdviceId)",
+            })
+        );
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(updated),
+        };
+    } catch (err: any) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                error: "InternalServerError",
+                message: err.message ?? "Internal server error",
+            }),
+        };
+    }
+}
+
+export async function deleteDespatchAdvice(
+    event: any,
+    documentId: string,
+    sessionId: string | undefined
+) {
+    // authorisation: session must exist
+    const clientId = await verifySession(sessionId);
+    if (!clientId) {
+        return {
+            statusCode: 401,
+            body: JSON.stringify({
+                error: "Unauthorized",
+                message: "Invalid or missing session",
+            }),
+        };
+    }
+
+    try {
+        // find the item by documentId
+        const scanResult = await dynamo.send(
+            new ScanCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                FilterExpression: "documentId = :d",
+                ExpressionAttributeValues: marshall({ ":d": documentId }),
+                Limit: 1,
+            })
+        );
+
+        if (!scanResult.Items || scanResult.Items.length === 0) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({
+                    error: "NotFound",
+                    message: "Despatch advice not found",
+                }),
+            };
+        }
+
+        const existing = unmarshall(scanResult.Items[0]) as any;
+
+        // optional: only allow sender to delete
+        if (existing.senderId && existing.senderId !== clientId) {
+            return {
+                statusCode: 401,
+                body: JSON.stringify({
+                    error: "Unauthorized",
+                    message: "You are not allowed to delete this despatch advice",
+                }),
+            };
+        }
+
+        await dynamo.send(
+            new DeleteItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId: existing.despatchAdviceId }),
+                ConditionExpression: "attribute_exists(despatchAdviceId)",
+            })
+        );
+
+        // 204 No Content as per swagger.yaml
+        return {
+            statusCode: 204,
+            body: "",
+        };
+    } catch (err: any) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                error: "InternalServerError",
+                message: err.message ?? "Internal server error",
+            }),
+        };
+    }
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// updateDespatchAdvice /////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
