@@ -1,5 +1,6 @@
 import { PutItemCommand, GetItemCommand, ScanCommand, DeleteItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { v4 as uuidv4 } from "uuid";
 import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
@@ -36,6 +37,7 @@ interface DespatchSupplierParty {
 }
 
 interface DespatchAdvice {
+    despatchAdviceId: string;   // partition key — auto-generated UUID
     documentId: string;
     senderId: string;
     receiverId: string;
@@ -99,6 +101,7 @@ function validateDespatchAdvice(body: any): string | null {
 // Ensures we never persist or return undeclared fields.
 function sanitiseDespatchAdvice(body: any): DespatchAdvice {
     const sanitised: DespatchAdvice = {
+        despatchAdviceId: uuidv4(),   // partition key — generated here, never from client
         documentId: body.documentId,
         senderId: body.senderId,
         receiverId: body.receiverId,

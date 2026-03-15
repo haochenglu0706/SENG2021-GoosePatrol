@@ -1,6 +1,5 @@
 import { jest } from "@jest/globals";
-import { randomBytes, scryptSync } from "crypto";
-
+ 
 jest.unstable_mockModule("../src/db.js", () => ({
     dynamo: {
         send: jest.fn(),
@@ -9,17 +8,18 @@ jest.unstable_mockModule("../src/db.js", () => ({
     SESSIONS_TABLE: "Sessions",
     DESPATCH_ADVICES_TABLE: "DespatchAdvices",
 }));
-
-const { createDespatchAdvice, getDespatchAdvice, updateDespatchAdvice, 
+ 
+const { createDespatchAdvice, getDespatchAdvice, updateDespatchAdvice,
     listDespatchAdvices, deleteDespatchAdvice } = await import("../src/routes/despatchAdvice.js");
 const { dynamo } = await import("../src/db.js");
-
+ 
 const mockSend = dynamo.send as ReturnType<typeof jest.fn>;
-
+ 
 /// /////////////////////////////////////////////////////////////////////////////
-/// ////////////////////// Shared fields ////////////////////////////////////////
+/// ////////////////////// Shared fixtures /////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
  
+// Minimum valid DespatchAdvice body per swagger.yaml schema:
 // required fields: documentId, senderId, receiverId, despatchSupplierParty
 const VALID_DESPATCH_ADVICE = {
     documentId: "DA-001",
@@ -49,6 +49,7 @@ const VALID_DESPATCH_ADVICE = {
     },
 };
  
+// What DynamoDB returns when a document is found (PutItem/GetItem response)
 const MOCK_DYNAMODB_ITEM = {
     documentId: { S: "DA-001" },
     senderId: { S: "sender-123" },
@@ -86,12 +87,12 @@ const MOCK_DYNAMODB_ITEM = {
 };
  
 /// /////////////////////////////////////////////////////////////////////////////
-
+ 
 describe("despatchAdvice", () => {
     beforeEach(() => {
         mockSend.mockReset();
     });
-
+ 
     /// /////////////////////////////////////////////////////////////////////////
     /// ////////////////////// createDespatchAdvice /////////////////////////////
     /// /////////////////////////////////////////////////////////////////////////
@@ -219,6 +220,59 @@ describe("despatchAdvice", () => {
  
             const result = await createDespatchAdvice(bodyMinimalAddress);
             expect(result.statusCode).toBe(201);
+        });
+ 
+        // -----------------------------------------------------------------
+        // despatchAdviceId — partition key sent to DynamoDB
+        // -----------------------------------------------------------------
+ 
+        test("sends despatchAdviceId as partition key to DynamoDB", async () => {
+            mockSend.mockResolvedValueOnce({});
+ 
+            await createDespatchAdvice(VALID_DESPATCH_ADVICE);
+ 
+            const sentCommand = mockSend.mock.calls[0][0];
+            const sentItem = sentCommand.input.Item;
+ 
+            expect(sentItem).toHaveProperty("despatchAdviceId");
+            expect(sentItem.despatchAdviceId).toMatchObject({ S: expect.any(String) });
+        });
+ 
+        test("despatchAdviceId sent to DynamoDB is a valid UUID", async () => {
+            mockSend.mockResolvedValueOnce({});
+ 
+            await createDespatchAdvice(VALID_DESPATCH_ADVICE);
+ 
+            const sentCommand = mockSend.mock.calls[0][0];
+            const sentItem = sentCommand.input.Item;
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+ 
+            expect(sentItem.despatchAdviceId.S).toMatch(uuidRegex);
+        });
+ 
+        test("response body includes despatchAdviceId", async () => {
+            mockSend.mockResolvedValueOnce({});
+ 
+            const result = await createDespatchAdvice(VALID_DESPATCH_ADVICE);
+            const body = JSON.parse(result.body);
+ 
+            expect(body).toHaveProperty("despatchAdviceId");
+            expect(typeof body.despatchAdviceId).toBe("string");
+        });
+ 
+        test("each call generates a unique despatchAdviceId", async () => {
+            mockSend.mockResolvedValue({});
+ 
+            const result1 = await createDespatchAdvice(VALID_DESPATCH_ADVICE);
+            const result2 = await createDespatchAdvice({
+                ...VALID_DESPATCH_ADVICE,
+                documentId: "DA-002",
+            });
+ 
+            const id1 = JSON.parse(result1.body).despatchAdviceId;
+            const id2 = JSON.parse(result2.body).despatchAdviceId;
+ 
+            expect(id1).not.toBe(id2);
         });
  
         // -----------------------------------------------------------------
