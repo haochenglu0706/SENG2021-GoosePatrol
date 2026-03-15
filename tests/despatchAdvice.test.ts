@@ -416,6 +416,165 @@ describe("despatchAdvice", () => {
                 expect(result.statusCode).toBe(409);
             });
         });
+
+        describe("handles Lambda API Gateway event format", () => {
+            test("accepts body as a JSON string on event.body", async () => {
+                mockSend.mockResolvedValueOnce({});
+ 
+                const result = await createDespatchAdvice({
+                    body: JSON.stringify(VALID_DESPATCH_ADVICE),
+                });
+ 
+                expect(result.statusCode).toBe(201);
+            });
+ 
+            test("accepts body as a pre-parsed object on event.body", async () => {
+                mockSend.mockResolvedValueOnce({});
+ 
+                const result = await createDespatchAdvice({
+                    body: VALID_DESPATCH_ADVICE,
+                });
+ 
+                expect(result.statusCode).toBe(201);
+            });
+ 
+            test("returns 400 when event.body is invalid JSON string", async () => {
+                const result = await createDespatchAdvice({
+                    body: "not-valid-json{{{",
+                });
+ 
+                expect(result.statusCode).toBe(400);
+                expect(mockSend).not.toHaveBeenCalled();
+            });
+ 
+            test("returns correct document in body when called with event.body string", async () => {
+                mockSend.mockResolvedValueOnce({});
+ 
+                const result = await createDespatchAdvice({
+                    body: JSON.stringify(VALID_DESPATCH_ADVICE),
+                });
+                const body = JSON.parse(result.body);
+ 
+                expect(body.documentId).toBe("DA-001");
+                expect(body.senderId).toBe("sender-123");
+            });
+        });
+    });
+ 
+    /// /////////////////////////////////////////////////////////////////////////
+    /// ////////////////////// getDespatchAdvice ////////////////////////////////
+    /// /////////////////////////////////////////////////////////////////////////
+ 
+    describe("getDespatchAdvice", () => {
+ 
+        // -----------------------------------------------------------------
+        // Success cases
+        // -----------------------------------------------------------------
+ 
+        test("returns 200 when despatch advice is found", async () => {
+            mockSend.mockResolvedValueOnce({ Item: MOCK_DYNAMODB_ITEM });
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "DA-001" },
+            });
+ 
+            expect(result.statusCode).toBe(200);
+        });
+ 
+        test("response body contains the despatch advice document", async () => {
+            mockSend.mockResolvedValueOnce({ Item: MOCK_DYNAMODB_ITEM });
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "DA-001" },
+            });
+            const body = JSON.parse(result.body);
+ 
+            expect(body).toHaveProperty("documentId");
+            expect(body).toHaveProperty("senderId");
+            expect(body).toHaveProperty("receiverId");
+        });
+ 
+        test("response body includes despatchSupplierParty", async () => {
+            mockSend.mockResolvedValueOnce({ Item: MOCK_DYNAMODB_ITEM });
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "DA-001" },
+            });
+            const body = JSON.parse(result.body);
+ 
+            expect(body.despatchSupplierParty).toBeDefined();
+        });
+ 
+        test("calls dynamo.send exactly once (GetItem)", async () => {
+            mockSend.mockResolvedValueOnce({ Item: MOCK_DYNAMODB_ITEM });
+ 
+            await getDespatchAdvice({
+                pathParameters: { despatchId: "DA-001" },
+            });
+ 
+            expect(mockSend).toHaveBeenCalledTimes(1);
+        });
+ 
+        // -----------------------------------------------------------------
+        // Not found
+        // -----------------------------------------------------------------
+ 
+        test("returns 404 when despatch advice does not exist", async () => {
+            mockSend.mockResolvedValueOnce({ Item: undefined });
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "nonexistent-id" },
+            });
+ 
+            expect(result.statusCode).toBe(404);
+        });
+ 
+        test("returns 404 response body with error message", async () => {
+            mockSend.mockResolvedValueOnce({ Item: undefined });
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "nonexistent-id" },
+            });
+            const body = JSON.parse(result.body);
+ 
+            expect(body).toHaveProperty("message");
+            expect(typeof body.message).toBe("string");
+        });
+ 
+        test("returns 404 when despatchId is empty string", async () => {
+            mockSend.mockResolvedValueOnce({ Item: undefined });
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "" },
+            });
+ 
+            expect(result.statusCode).toBe(404);
+        });
+ 
+        // -----------------------------------------------------------------
+        // DynamoDB failure
+        // -----------------------------------------------------------------
+ 
+        test("returns 500 when DynamoDB GetItem throws", async () => {
+            mockSend.mockRejectedValueOnce(new Error("DynamoDB unavailable"));
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "DA-001" },
+            });
+ 
+            expect(result.statusCode).toBe(500);
+        });
+ 
+        test("returns 500 response body with error message when DynamoDB fails", async () => {
+            mockSend.mockRejectedValueOnce(new Error("DynamoDB unavailable"));
+ 
+            const result = await getDespatchAdvice({
+                pathParameters: { despatchId: "DA-001" },
+            });
+            const body = JSON.parse(result.body);
+ 
+            expect(body).toHaveProperty("message");
+        });
     });
 
     /// /////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,16 @@ export async function route(event: any) {
     return despatch.createDespatchAdvice(event);
   }
 
+  // GET /despatch-advices/{despatchId}
+  const despatchAdviceMatch = path.match(/^\/despatch-advices\/([^/]+)$/);
+  if (method === "GET" && despatchAdviceMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      despatchId: despatchAdviceMatch[1],
+    };
+    return despatch.getDespatchAdvice(event);
+  }
+
   // RECEIPT ADVICE ROUTES
  
   // POST /despatch-advices/{despatchAdviceId}/receipt-advices
