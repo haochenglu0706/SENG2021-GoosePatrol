@@ -165,6 +165,10 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
 /**
  * Creates a new despatch advice document and writes it to DynamoDB.
  *
+ * Accepts two calling conventions:
+ *   - createDespatchAdvice(bodyObject)        — used by unit tests
+ *   - createDespatchAdvice(apiGatewayEvent)   — used by Lambda
+ *
  * POST /despatch-advices
  * Responses:
  *   201 — document created, returns DespatchAdvice
@@ -173,6 +177,7 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
  *   500 — DynamoDB or unexpected error
  */
 export async function createDespatchAdvice(event: any) {
+    // parse body — handles both direct object (tests) and Lambda event
     const { body, error: parseError } = parseBody(event);
     if (parseError) {
         return {
@@ -184,6 +189,7 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
+    // validate required fields before touching DynamoDB
     const validationError = validateDespatchAdvice(body);
     if (validationError) {
         return {
@@ -195,8 +201,10 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
+    // sanitise — only keep fields defined in the swagger schema
     const item = sanitiseDespatchAdvice(body);
 
+    // write to DynamoDB
     try {
         await dynamo.send(
             new PutItemCommand({
@@ -225,6 +233,7 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
+    // return the created document
     return {
         statusCode: 201,
         body: JSON.stringify(item),

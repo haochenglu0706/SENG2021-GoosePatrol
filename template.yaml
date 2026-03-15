@@ -27,16 +27,17 @@ Globals:
   Api:
     TracingEnabled: true
 
-Resources: #add more routes here using this format
+Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: .
+      CodeUri: src/
       Handler: handler.lambdaHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
       Events:
+        # Auth routes
         RegisterClient:
           Type: Api
           Properties:
@@ -52,10 +53,17 @@ Resources: #add more routes here using this format
           Properties:
             Path: /sessions/{sessionId}
             Method: delete
-        CreateDespatch:
+
+        # DespatchAdvice routes — fixed from /despatch-advice to /despatch-advices
+        ListDespatchAdvices:
           Type: Api
           Properties:
-            Path: /despatch-advice
+            Path: /despatch-advices
+            Method: get
+        CreateDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices
             Method: post
         CancelFulfilment:
           Type: Api
@@ -92,14 +100,25 @@ Resources: #add more routes here using this format
       AttributeDefinitions:
         - AttributeName: documentId
           AttributeType: S
-        - AttributeName: documentType
+        - AttributeName: submitterId
           AttributeType: S
       KeySchema:
-        - AttributeName: documentId
+        - AttributeName: receiptAdviceId
           KeyType: HASH
-        - AttributeName: documentType
-          KeyType: RANGE
-
+      GlobalSecondaryIndexes:
+        - IndexName: despatch-advice-index
+          KeySchema:
+            - AttributeName: despatchAdviceId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: submitter-index
+          KeySchema:
+            - AttributeName: submitterId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+ 
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
@@ -114,5 +133,8 @@ Outputs:
     Description: Sessions DynamoDB table in use
     Value: !Ref SessionsTableName
   DocumentsTableName:
-    Description: Documents DynamoDB table in use
+    Description: DespatchAdvices DynamoDB table in use
     Value: !Ref DocumentsTableName
+  ReceiptAdvicesTableName:
+    Description: ReceiptAdvices DynamoDB table in use
+    Value: !Ref ReceiptAdvicesTableName
