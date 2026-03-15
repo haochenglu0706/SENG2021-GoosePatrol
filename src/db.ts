@@ -7,3 +7,6 @@ export const CLIENTS_TABLE =
 
 export const SESSIONS_TABLE =
   (process.env.SESSIONS_TABLE_NAME as string) || "Sessions";
+
+export const DESPATCH_ADVICES_TABLE =
+  (process.env.DESPATCH_ADVICES_TABLE_NAME as string) || "DespatchAdvices";
