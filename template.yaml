@@ -27,16 +27,17 @@ Globals:
   Api:
     TracingEnabled: true
 
-Resources: #add more routes here using this format
+Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: .
+      CodeUri: src/
       Handler: handler.lambdaHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
       Events:
+        # Auth routes
         RegisterClient:
           Type: Api
           Properties:
@@ -52,11 +53,13 @@ Resources: #add more routes here using this format
           Properties:
             Path: /sessions/{sessionId}
             Method: delete
-        # CreateDespatch:
-        #   Type: Api
-        #   Properties:
-        #     Path: /despatch-advice
-        #     Method: post
+
+        # DespatchAdvice routes — fixed from /despatch-advice to /despatch-advices
+        ListDespatchAdvices:
+          Type: Api
+          Properties:
+            Path: /despatch-advices
+            Method: get
         CreateDespatchAdvice:
           Type: Api
           Properties:
@@ -65,23 +68,25 @@ Resources: #add more routes here using this format
         GetDespatchAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advices/{documentId}
+            Path: /despatch-advices/{despatchId}
             Method: get
         UpdateDespatchAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advices/{documentId}
+            Path: /despatch-advices/{despatchId}
             Method: put
         DeleteDespatchAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advices/{documentId}
+            Path: /despatch-advices/{despatchId}
             Method: delete
+
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
           CLIENTS_TABLE_NAME: !Ref ClientsTableName
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
+          DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
@@ -114,10 +119,10 @@ Resources: #add more routes here using this format
             Method: post
       Environment:
         Variables:
-          DESPATCH_ADVICES_TABLE_NAME: !Ref DespatchAdvicesTable
+          DESPATCH_ADVICES_TABLE_NAME: DespatchAdvices
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref DespatchAdvicesTable
+            TableName: DespatchAdvices
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -127,33 +132,8 @@ Resources: #add more routes here using this format
         EntryPoints:
           - handler.ts
 
-  DespatchAdvicesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: DespatchAdvices
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: despatchAdviceId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: despatchAdviceId
-          KeyType: HASH
-
-  DocumentsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: StackfeedDocuments
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: documentId
-          AttributeType: S
-        - AttributeName: documentType
-          AttributeType: S
-      KeySchema:
-        - AttributeName: documentId
-          KeyType: HASH
-        - AttributeName: documentType
-          KeyType: RANGE
+  # DespatchAdvices and StackfeedDocuments tables are pre-existing —
+  # created via dynamodb_setup.mjs and managed outside this stack.
 
 Outputs:
   ApiEndpoint:
