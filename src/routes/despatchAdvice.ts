@@ -2,6 +2,7 @@ import { PutItemCommand, GetItemCommand, ScanCommand, DeleteItemCommand, UpdateI
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
+import { verifySession } from "./auth.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Types (from swagger.yaml) ////////////////////////////
@@ -45,6 +46,36 @@ interface DespatchAdvice {
 }
 
 /// /////////////////////////////////////////////////////////////////////////////
+/// ////////////////////// Shared response helpers //////////////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
+
+function ok(data: object, statusCode = 200) {
+    return { statusCode, body: JSON.stringify(data) };
+}
+
+function notFound(message: string) {
+    return { statusCode: 404, body: JSON.stringify({ error: "NotFound", message }) };
+}
+
+function badRequest(message: string) {
+    return { statusCode: 400, body: JSON.stringify({ error: "BadRequest", message }) };
+}
+
+function conflict(message: string) {
+    return { statusCode: 409, body: JSON.stringify({ error: "Conflict", message }) };
+}
+
+function internalError(err: any) {
+    return {
+        statusCode: 500,
+        body: JSON.stringify({
+            error: "InternalServerError",
+            message: err?.message ?? "Internal server error",
+        }),
+    };
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Body parsing /////////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
 
@@ -52,18 +83,10 @@ interface DespatchAdvice {
 //   - a plain object passed directly (unit tests)
 //   - an API Gateway event with event.body as a string (Lambda)
 function parseBody(event: any): { body: any; error?: string } {
-    // unit tests pass the body object directly — no event wrapper
-    if (event && event.documentId !== undefined) {
-        return { body: event };
-    }
-    if (event && event.senderId !== undefined) {
-        return { body: event };
-    }
-    if (event && event.despatchSupplierParty !== undefined) {
-        return { body: event };
-    }
+    if (event && event.documentId !== undefined) return { body: event };
+    if (event && event.senderId !== undefined) return { body: event };
+    if (event && event.despatchSupplierParty !== undefined) return { body: event };
 
-    // Lambda / API Gateway — body is a JSON string on event.body
     if (event && typeof event.body === "string") {
         try {
             return { body: JSON.parse(event.body) };
@@ -72,12 +95,10 @@ function parseBody(event: any): { body: any; error?: string } {
         }
     }
 
-    // event.body is already an object (some Lambda proxy configurations)
     if (event && event.body && typeof event.body === "object") {
         return { body: event.body };
     }
 
-    // fallback — treat the whole event as the body
     return { body: event ?? {} };
 }
 
@@ -85,8 +106,6 @@ function parseBody(event: any): { body: any; error?: string } {
 /// ////////////////////// Validation ///////////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
 
-// Validates required fields from swagger DespatchAdvice schema.
-// Returns an error message string if invalid, null if valid.
 function validateDespatchAdvice(body: any): string | null {
     if (!body.documentId) return "documentId is required";
     if (!body.senderId) return "senderId is required";
@@ -97,11 +116,9 @@ function validateDespatchAdvice(body: any): string | null {
     return null;
 }
 
-// Strips any fields not defined in the swagger DespatchAdvice schema.
-// Ensures we never persist or return undeclared fields.
 function sanitiseDespatchAdvice(body: any): DespatchAdvice {
     const sanitised: DespatchAdvice = {
-        despatchAdviceId: uuidv4(),   // partition key — generated here, never from client
+        despatchAdviceId: uuidv4(),
         documentId: body.documentId,
         senderId: body.senderId,
         receiverId: body.receiverId,
@@ -110,20 +127,17 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
     if (body.despatchSupplierParty) {
         sanitised.despatchSupplierParty = {};
 
-        // optional: customerAssignedAccountId
         if (body.despatchSupplierParty.customerAssignedAccountId) {
             sanitised.despatchSupplierParty.customerAssignedAccountId =
                 body.despatchSupplierParty.customerAssignedAccountId;
         }
 
-        // required: party
         if (body.despatchSupplierParty.party) {
             const rawParty = body.despatchSupplierParty.party;
             const party: Party = {};
 
             if (rawParty.name) party.name = rawParty.name;
 
-            // optional: postalAddress — all subfields optional per swagger
             if (rawParty.postalAddress) {
                 const raw = rawParty.postalAddress;
                 const postalAddress: PostalAddress = {};
@@ -140,7 +154,6 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
                 party.postalAddress = postalAddress;
             }
 
-            // optional: contact — all subfields optional per swagger
             if (rawParty.contact) {
                 const raw = rawParty.contact;
                 const contact: Contact = {};
@@ -164,20 +177,100 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
 
 /**
  * Creates a new despatch advice document and writes it to DynamoDB.
- *
- * Accepts two calling conventions:
- *   - createDespatchAdvice(bodyObject)        — used by unit tests
- *   - createDespatchAdvice(apiGatewayEvent)   — used by Lambda
- *
  * POST /despatch-advices
- * Responses:
- *   201 — document created, returns DespatchAdvice
- *   400 — missing or invalid required fields
- *   409 — document with same documentId already exists
- *   500 — DynamoDB or unexpected error
  */
 export async function createDespatchAdvice(event: any) {
-    // parse body — handles both direct object (tests) and Lambda event
+    const { body, error: parseError } = parseBody(event);
+    if (parseError) return badRequest(parseError);
+
+    const validationError = validateDespatchAdvice(body);
+    if (validationError) return badRequest(validationError);
+
+    const item = sanitiseDespatchAdvice(body);
+
+    try {
+        await dynamo.send(
+            new PutItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Item: marshall(item, { removeUndefinedValues: true }),
+                ConditionExpression: "attribute_not_exists(documentId)",
+            })
+        );
+        return ok(item, 201);
+    } catch (err: any) {
+        if (err.name === "ConditionalCheckFailedException") {
+            return conflict(`A despatch advice with documentId '${body.documentId}' already exists`);
+        }
+        return internalError(err);
+    }
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// ////////////////////// listDespatchAdvices //////////////////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Returns all despatch advices via a full table scan.
+ * For testing/admin use only.
+ * GET /despatch-advices
+ */
+export async function listDespatchAdvices(event: any) {
+    try {
+        const result = await dynamo.send(
+            new ScanCommand({ TableName: DESPATCH_ADVICES_TABLE })
+        );
+        const items = (result.Items ?? []).map((item) => unmarshall(item));
+        return ok(items);
+    } catch (err: any) {
+        return internalError(err);
+    }
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// ////////////////////// getDespatchAdvice ////////////////////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Retrieves a single despatch advice by its despatchAdviceId path parameter.
+ * GET /despatch-advices/{despatchId}
+ */
+export async function getDespatchAdvice(event: any) {
+    const despatchId = event?.pathParameters?.despatchId;
+
+    try {
+        const result = await dynamo.send(
+            new GetItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId: despatchId }),
+            })
+        );
+
+        if (!result.Item) return notFound(`Despatch advice not found: ${despatchId}`);
+
+        return ok(unmarshall(result.Item));
+    } catch (err: any) {
+        return internalError(err);
+    }
+}
+
+export async function updateDespatchAdvice(
+    event: any,
+    documentId: string,
+    sessionId: string | undefined
+) {
+    // authorisation: session must exist
+    const clientId = await verifySession(sessionId);
+    if (!clientId) {
+        return {
+            statusCode: 401,
+            body: JSON.stringify({
+                error: "Unauthorized",
+                message: "Invalid or missing session",
+            }),
+        };
+    }
+
+    // parse body — supports both direct object (tests) and Lambda event
     const { body, error: parseError } = parseBody(event);
     if (parseError) {
         return {
@@ -189,7 +282,21 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
-    // validate required fields before touching DynamoDB
+    // ensure path ID and body ID are consistent (when both provided)
+    if (body.documentId && body.documentId !== documentId) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({
+                error: "BadRequest",
+                message: "documentId in path and body must match",
+            }),
+        };
+    }
+
+    // always use the path parameter as the canonical documentId
+    body.documentId = documentId;
+
+    // validate required fields according to swagger schema
     const validationError = validateDespatchAdvice(body);
     if (validationError) {
         return {
@@ -201,29 +308,62 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
-    // sanitise — only keep fields defined in the swagger schema
-    const item = sanitiseDespatchAdvice(body);
-
-    // write to DynamoDB
     try {
-        await dynamo.send(
-            new PutItemCommand({
+        // look up existing item by documentId
+        const scanResult = await dynamo.send(
+            new ScanCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Item: marshall(item, { removeUndefinedValues: true }),
-                ConditionExpression: "attribute_not_exists(documentId)",
+                FilterExpression: "documentId = :d",
+                ExpressionAttributeValues: marshall({ ":d": documentId }),
+                Limit: 1,
             })
         );
-    } catch (err: any) {
-        if (err.name === "ConditionalCheckFailedException") {
+
+        if (!scanResult.Items || scanResult.Items.length === 0) {
             return {
-                statusCode: 409,
+                statusCode: 404,
                 body: JSON.stringify({
-                    error: "Conflict",
-                    message: `A despatch advice with documentId '${body.documentId}' already exists`,
+                    error: "NotFound",
+                    message: "Despatch advice not found",
                 }),
             };
         }
 
+        const existing = unmarshall(scanResult.Items[0]) as any;
+
+        // optional: simple ownership check — only allow sender to update
+        if (existing.senderId && existing.senderId !== body.senderId) {
+            return {
+                statusCode: 401,
+                body: JSON.stringify({
+                    error: "Unauthorized",
+                    message: "You are not allowed to modify this despatch advice",
+                }),
+            };
+        }
+
+        // sanitise the incoming body according to swagger schema
+        const updated = sanitiseDespatchAdvice(body) as any;
+
+        // preserve primary key and any existing status field
+        updated.despatchAdviceId = existing.despatchAdviceId;
+        if (existing.status !== undefined) {
+            updated.status = existing.status;
+        }
+
+        await dynamo.send(
+            new PutItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Item: marshall(updated, { removeUndefinedValues: true }),
+                ConditionExpression: "attribute_exists(despatchAdviceId)",
+            })
+        );
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify(updated),
+        };
+    } catch (err: any) {
         return {
             statusCode: 500,
             body: JSON.stringify({
@@ -232,67 +372,89 @@ export async function createDespatchAdvice(event: any) {
             }),
         };
     }
-
-    // return the created document
-    return {
-        statusCode: 201,
-        body: JSON.stringify(item),
-    };
 }
 
-export async function listDespatchAdvices(event: any) {
-    return {
-        statusCode: 501,
-        body: JSON.stringify({
-            error: "NotImplemented",
-            message: "listDespatchAdvices is not implemented yet",
-        }),
-    };
-}
+export async function deleteDespatchAdvice(
+    event: any,
+    documentId: string,
+    sessionId: string | undefined
+) {
+    // authorisation: session must exist
+    const clientId = await verifySession(sessionId);
+    if (!clientId) {
+        return {
+            statusCode: 401,
+            body: JSON.stringify({
+                error: "Unauthorized",
+                message: "Invalid or missing session",
+            }),
+        };
+    }
 
-export async function getDespatchAdvice(event: any) {
-    return {
-        statusCode: 501,
-        body: JSON.stringify({
-            error: "NotImplemented",
-            message: "getDespatchAdvice is not implemented yet",
-        }),
-    };
-}
+    try {
+        // find the item by documentId
+        const scanResult = await dynamo.send(
+            new ScanCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                FilterExpression: "documentId = :d",
+                ExpressionAttributeValues: marshall({ ":d": documentId }),
+                Limit: 1,
+            })
+        );
 
-export async function updateDespatchAdvice(event: any) {
-    return {
-        statusCode: 501,
-        body: JSON.stringify({
-            error: "NotImplemented",
-            message: "updateDespatchAdvice is not implemented yet",
-        }),
-    };
-}
+        if (!scanResult.Items || scanResult.Items.length === 0) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({
+                    error: "NotFound",
+                    message: "Despatch advice not found",
+                }),
+            };
+        }
 
-export async function deleteDespatchAdvice(event: any) {
-    return {
-        statusCode: 501,
-        body: JSON.stringify({
-            error: "NotImplemented",
-            message: "deleteDespatchAdvice is not implemented yet",
-        }),
-    };
-}
+        const existing = unmarshall(scanResult.Items[0]) as any;
 
+        // optional: only allow sender to delete
+        if (existing.senderId && existing.senderId !== clientId) {
+            return {
+                statusCode: 401,
+                body: JSON.stringify({
+                    error: "Unauthorized",
+                    message: "You are not allowed to delete this despatch advice",
+                }),
+            };
+        }
+
+        await dynamo.send(
+            new DeleteItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId: existing.despatchAdviceId }),
+                ConditionExpression: "attribute_exists(despatchAdviceId)",
+            })
+        );
+
+        // 204 No Content as per swagger.yaml
+        return {
+            statusCode: 204,
+            body: "",
+        };
+    } catch (err: any) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                error: "InternalServerError",
+                message: err.message ?? "Internal server error",
+            }),
+        };
+    }
+}
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// cancelFulfilment /////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
 
 /**
  * Cancels the fulfilment of a despatch advice.
- *
  * POST /despatch-advices/{despatchId}/fulfilment-cancellation
- * Responses:
- *   200 — cancelled successfully, returns { status: "FULFILMENT_CANCELLED" }
- *   404 — despatch advice not found
- *   409 — already received or already cancelled
- *   500 — DynamoDB or unexpected error
  */
 export async function cancelFulfilment(event: any, despatchId: string) {
     try {
@@ -303,47 +465,13 @@ export async function cancelFulfilment(event: any, despatchId: string) {
             })
         );
 
-        if (!result.Item) {
-            return {
-                statusCode: 404,
-                body: JSON.stringify({
-                    error: "NotFound",
-                    message: "Despatch advice not found",
-                }),
-            };
-        }
+        if (!result.Item) return notFound("Despatch advice not found");
 
         const item = unmarshall(result.Item) as { status?: string };
 
-        if (item.status === "RECEIVED") {
-            return {
-                statusCode: 409,
-                body: JSON.stringify({
-                    error: "Conflict",
-                    message: "Despatch advice has already been received",
-                }),
-            };
-        }
-
-        if (item.status === "FULFILMENT_CANCELLED") {
-            return {
-                statusCode: 409,
-                body: JSON.stringify({
-                    error: "Conflict",
-                    message: "Despatch advice has already been cancelled",
-                }),
-            };
-        }
-
-        if (item.status === undefined) {
-            return {
-                statusCode: 409,
-                body: JSON.stringify({
-                    error: "Conflict",
-                    message: "Unknown status on despatch advice",
-                }),
-            };
-        }
+        if (item.status === "RECEIVED")             return conflict("Despatch advice has already been received");
+        if (item.status === "FULFILMENT_CANCELLED") return conflict("Despatch advice has already been cancelled");
+        if (item.status === undefined)              return conflict("Unknown status on despatch advice");
 
         await dynamo.send(
             new UpdateItemCommand({
@@ -355,17 +483,8 @@ export async function cancelFulfilment(event: any, despatchId: string) {
             })
         );
 
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ status: "FULFILMENT_CANCELLED" }),
-        };
+        return ok({ status: "FULFILMENT_CANCELLED" });
     } catch (err: any) {
-        return {
-            statusCode: 500,
-            body: JSON.stringify({
-                error: "InternalServerError",
-                message: err.message ?? "Internal server error",
-            }),
-        };
+        return internalError(err);
     }
 }
