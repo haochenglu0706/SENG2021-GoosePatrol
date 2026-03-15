@@ -572,4 +572,7 @@ import {
     process.exit(1);
   });
 
-  // Acknowledgement: This file was created with the assistance of Claude.
+  /**
+   * Anthropic. 2023, Claude [Large Language Model], 
+   * Retrieved March 12, 2026, from https://claude.ai/new. 
+   */
