@@ -2,7 +2,21 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   SENG2021-GoosePatrol
-  SAM Template for Delivery Document Exchange API
+  SAM Template for Delivery Document Exchange API (uses existing DynamoDB tables)
+
+Parameters:
+  ClientsTableName:
+    Type: String
+    Default: Clients
+    Description: Name of the existing Clients DynamoDB table
+  SessionsTableName:
+    Type: String
+    Default: Sessions
+    Description: Name of the existing Sessions DynamoDB table
+  DocumentsTableName:
+    Type: String
+    Default: DespatchAdvices
+    Description: Name of the existing documents/despatch DynamoDB table
 
 Globals:
   Function:
@@ -14,15 +28,30 @@ Globals:
     TracingEnabled: true
 
 Resources: #add more routes here using this format
-  DespatchAdviceFunction:
+  ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/
-      Handler: dist/handler.lambdaHandler
-      Runtime: nodejs24.x
+      CodeUri: .
+      Handler: handler.lambdaHandler
+      Runtime: nodejs20.x
       Architectures:
         - x86_64
       Events:
+        RegisterClient:
+          Type: Api
+          Properties:
+            Path: /clients
+            Method: post
+        CreateSession:
+          Type: Api
+          Properties:
+            Path: /sessions
+            Method: post
+        DeleteSession:
+          Type: Api
+          Properties:
+            Path: /sessions/{sessionId}
+            Method: delete
         CreateDespatch:
           Type: Api
           Properties:
@@ -30,10 +59,16 @@ Resources: #add more routes here using this format
             Method: post
       Environment:
         Variables:
-          TABLE_NAME: !Ref DocumentsTable
+          TABLE_NAME: !Ref DocumentsTableName
+          CLIENTS_TABLE_NAME: !Ref ClientsTableName
+          SESSIONS_TABLE_NAME: !Ref SessionsTableName
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref DocumentsTable
+            TableName: !Ref DocumentsTableName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ClientsTableName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SessionsTableName
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -41,31 +76,21 @@ Resources: #add more routes here using this format
         Target: es2020
         Sourcemap: true
         EntryPoints:
-          - handler.ts
-
-  DocumentsTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: StackfeedDocuments
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: documentId
-          AttributeType: S
-        - AttributeName: documentType
-          AttributeType: S
-      KeySchema:
-        - AttributeName: documentId
-          KeyType: HASH
-        - AttributeName: documentType
-          KeyType: RANGE
+          - src/handler.ts
 
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
-  DespatchAdviceFunctionArn:
-    Description: Despatch Advice Lambda Function ARN
-    Value: !GetAtt DespatchAdviceFunction.Arn
+  ApiFunctionArn:
+    Description: API Lambda Function ARN
+    Value: !GetAtt ApiFunction.Arn
+  ClientsTableName:
+    Description: Clients DynamoDB table in use
+    Value: !Ref ClientsTableName
+  SessionsTableName:
+    Description: Sessions DynamoDB table in use
+    Value: !Ref SessionsTableName
   DocumentsTableName:
-    Description: DynamoDB Table Name
-    Value: !Ref DocumentsTable
+    Description: Documents DynamoDB table in use
+    Value: !Ref DocumentsTableName
