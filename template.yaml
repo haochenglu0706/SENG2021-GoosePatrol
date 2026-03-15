@@ -27,16 +27,17 @@ Globals:
   Api:
     TracingEnabled: true
 
-Resources: #add more routes here using this format
+Resources:
   ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: .
+      CodeUri: src/
       Handler: handler.lambdaHandler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
       Events:
+        # Auth routes
         RegisterClient:
           Type: Api
           Properties:
@@ -52,16 +53,29 @@ Resources: #add more routes here using this format
           Properties:
             Path: /sessions/{sessionId}
             Method: delete
-        CreateDespatch:
+
+        # DespatchAdvice routes — fixed from /despatch-advice to /despatch-advices
+        ListDespatchAdvices:
           Type: Api
           Properties:
-            Path: /despatch-advice
+            Path: /despatch-advices
+            Method: get
+        CreateDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices
+            Method: post
+        CancelFulfilment:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
           CLIENTS_TABLE_NAME: !Ref ClientsTableName
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
+          DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
@@ -76,8 +90,35 @@ Resources: #add more routes here using this format
         Target: es2020
         Sourcemap: true
         EntryPoints:
-          - src/handler.ts
+          - handler.ts
 
+  DocumentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: StackfeedDocuments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: documentId
+          AttributeType: S
+        - AttributeName: submitterId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: receiptAdviceId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: despatch-advice-index
+          KeySchema:
+            - AttributeName: despatchAdviceId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: submitter-index
+          KeySchema:
+            - AttributeName: submitterId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+ 
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
@@ -92,5 +133,8 @@ Outputs:
     Description: Sessions DynamoDB table in use
     Value: !Ref SessionsTableName
   DocumentsTableName:
-    Description: Documents DynamoDB table in use
+    Description: DespatchAdvices DynamoDB table in use
     Value: !Ref DocumentsTableName
+  ReceiptAdvicesTableName:
+    Description: ReceiptAdvices DynamoDB table in use
+    Value: !Ref ReceiptAdvicesTableName
