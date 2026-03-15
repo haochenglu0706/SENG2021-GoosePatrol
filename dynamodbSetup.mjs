@@ -571,3 +571,5 @@ import {
     console.error("Fatal error:", err);
     process.exit(1);
   });
+
+  // Acknowledgement: This file was created with the assistance of Claude.
