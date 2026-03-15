@@ -76,7 +76,64 @@ Resources: #add more routes here using this format
         Target: es2020
         Sourcemap: true
         EntryPoints:
-          - src/handler.ts
+          - handler.ts
+
+  CancelFulfilmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: dist/handler.lambdaHandler
+      Runtime: nodejs24.x
+      Architectures:
+        - x86_64
+      Events:
+        CancelFulfilment:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}/fulfilment-cancellation
+            Method: post
+      Environment:
+        Variables:
+          DESPATCH_ADVICES_TABLE_NAME: !Ref DespatchAdvicesTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DespatchAdvicesTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handler.ts
+
+  DespatchAdvicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: DespatchAdvices
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: despatchAdviceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: despatchAdviceId
+          KeyType: HASH
+
+  DocumentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: StackfeedDocuments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: documentId
+          AttributeType: S
+        - AttributeName: documentType
+          AttributeType: S
+      KeySchema:
+        - AttributeName: documentId
+          KeyType: HASH
+        - AttributeName: documentType
+          KeyType: RANGE
 
 Outputs:
   ApiEndpoint:
