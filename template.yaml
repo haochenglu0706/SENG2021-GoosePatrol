@@ -65,22 +65,11 @@ Resources:
           Properties:
             Path: /despatch-advices
             Method: post
-        GetDespatchAdvice:
+        CancelFulfilment:
           Type: Api
           Properties:
-            Path: /despatch-advices/{despatchId}
-            Method: get
-        UpdateDespatchAdvice:
-          Type: Api
-          Properties:
-            Path: /despatch-advices/{despatchId}
-            Method: put
-        DeleteDespatchAdvice:
-          Type: Api
-          Properties:
-            Path: /despatch-advices/{despatchId}
-            Method: delete
-
+            Path: /despatch-advices/{despatchId}/fulfilment-cancellation
+            Method: post
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
@@ -103,48 +92,13 @@ Resources:
         EntryPoints:
           - handler.ts
 
-  CancelFulfilmentFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: src/
-      Handler: dist/handler.lambdaHandler
-      Runtime: nodejs24.x
-      Architectures:
-        - x86_64
-      Events:
-        CancelFulfilment:
-          Type: Api
-          Properties:
-            Path: /despatch-advices/{despatchId}/fulfilment-cancellation
-            Method: post
-      Environment:
-        Variables:
-          DESPATCH_ADVICES_TABLE_NAME: DespatchAdvices
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: DespatchAdvices
-    Metadata:
-      BuildMethod: esbuild
-      BuildProperties:
-        Minify: true
-        Target: es2020
-        Sourcemap: true
-        EntryPoints:
-          - handler.ts
-
-  # DespatchAdvices and StackfeedDocuments tables are pre-existing —
-  # created via dynamodb_setup.mjs and managed outside this stack.
-
-# ReceiptAdvices table (created if it doesn't already exist)
-  ReceiptAdvicesTable:
+  DocumentsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Ref ReceiptAdvicesTableName
+      TableName: StackfeedDocuments
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: receiptAdviceId
-          AttributeType: S
-        - AttributeName: despatchAdviceId
+        - AttributeName: documentId
           AttributeType: S
         - AttributeName: submitterId
           AttributeType: S
