@@ -89,6 +89,12 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
+        # ReceiptAdvice routes
+        CreateReceiptAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}/receipt-advices
+            Method: post
 
       Environment:
         Variables:

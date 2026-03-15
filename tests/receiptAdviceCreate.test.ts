@@ -160,7 +160,6 @@ describe('createReceiptAdvice', () => {
   });
 
   test('handles despatch item with no senderId or receiverId', async () => {
-    // covers the optional spread branches at lines 143-147
     ddbMock.on(GetItemCommand).resolves({
       Item: marshall({ despatchAdviceId: 'DESPATCH-001', status: 'DESPATCHED' }),
     });
@@ -174,7 +173,6 @@ describe('createReceiptAdvice', () => {
   });
 
   test('handles receipt line with all optional fields present', async () => {
-    // covers the optional field branches at line 137
     ddbMock.on(GetItemCommand).resolves({ Item: makeDespatchItem('DESPATCHED') });
     ddbMock.on(PutItemCommand).resolves({});
     ddbMock.on(UpdateItemCommand).resolves({});
