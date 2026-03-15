@@ -177,7 +177,7 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
  *   500 — DynamoDB or unexpected error
  */
 export async function createDespatchAdvice(event: any) {
-    // 1. parse body — handles both direct object (tests) and Lambda event
+    // parse body — handles both direct object (tests) and Lambda event
     const { body, error: parseError } = parseBody(event);
     if (parseError) {
         return {
@@ -189,7 +189,7 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
-    // 2. validate required fields before touching DynamoDB
+    // validate required fields before touching DynamoDB
     const validationError = validateDespatchAdvice(body);
     if (validationError) {
         return {
@@ -201,10 +201,10 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
-    // 3. sanitise — only keep fields defined in the swagger schema
+    // sanitise — only keep fields defined in the swagger schema
     const item = sanitiseDespatchAdvice(body);
 
-    // 4. write to DynamoDB
+    // write to DynamoDB
     try {
         await dynamo.send(
             new PutItemCommand({
@@ -233,16 +233,13 @@ export async function createDespatchAdvice(event: any) {
         };
     }
 
-    // 5. return the created document
+    // return the created document
     return {
         statusCode: 201,
         body: JSON.stringify(item),
     };
 }
 
-/// /////////////////////////////////////////////////////////////////////////////
-/// ////////////////////// remaining routes (TODO) //////////////////////////////
-/// /////////////////////////////////////////////////////////////////////////////
 
 export async function listDespatchAdvices(event: any) {
     return {
