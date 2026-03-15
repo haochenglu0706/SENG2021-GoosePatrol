@@ -1,5 +1,6 @@
 import * as auth from "./routes/auth.js";
 import * as despatch from "./routes/despatchAdvice.js";
+import * as receipt from "./routes/receiptAdvice.js";
 
 /**
  * Simple router that inspects the incoming API Gateway event
@@ -27,6 +28,21 @@ export async function route(event: any) {
 
   if (method === "POST" && path === "/despatch-advices") {
     return despatch.create(event);
+  }
+
+  // RECEIPT ADVICE ROUTES
+ 
+  // POST /despatch-advices/{despatchAdviceId}/receipt-advices
+  const receiptAdviceCreateMatch = path.match(
+    /^\/despatch-advices\/([^/]+)\/receipt-advices$/
+  );
+  if (method === "POST" && receiptAdviceCreateMatch) {
+    // Inject the path parameter so the handler can read it uniformly
+    event.pathParameters = {
+      ...event.pathParameters,
+      despatchAdviceId: receiptAdviceCreateMatch[1],
+    };
+    return receipt.createReceiptAdvice(event);
   }
 
   return {

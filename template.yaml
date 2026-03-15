@@ -78,6 +78,36 @@ Resources: #add more routes here using this format
         EntryPoints:
           - src/handler.ts
 
+# ReceiptAdvices table (created if it doesn't already exist)
+  ReceiptAdvicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ReceiptAdvicesTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: receiptAdviceId
+          AttributeType: S
+        - AttributeName: despatchAdviceId
+          AttributeType: S
+        - AttributeName: submitterId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: receiptAdviceId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: despatch-advice-index
+          KeySchema:
+            - AttributeName: despatchAdviceId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: submitter-index
+          KeySchema:
+            - AttributeName: submitterId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+ 
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
@@ -92,5 +122,8 @@ Outputs:
     Description: Sessions DynamoDB table in use
     Value: !Ref SessionsTableName
   DocumentsTableName:
-    Description: Documents DynamoDB table in use
+    Description: DespatchAdvices DynamoDB table in use
     Value: !Ref DocumentsTableName
+  ReceiptAdvicesTableName:
+    Description: ReceiptAdvices DynamoDB table in use
+    Value: !Ref ReceiptAdvicesTableName
