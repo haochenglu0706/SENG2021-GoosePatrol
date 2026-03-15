@@ -7,6 +7,7 @@ jest.unstable_mockModule("../src/db.js", () => ({
     },
     CLIENTS_TABLE: "Clients",
     SESSIONS_TABLE: "Sessions",
+    DESPATCH_ADVICES_TABLE: "DespatchAdvices",
 }));
 
 const { createDespatchAdvice, getDespatchAdvice, updateDespatchAdvice, 
