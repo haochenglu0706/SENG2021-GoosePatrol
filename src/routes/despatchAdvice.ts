@@ -240,7 +240,6 @@ export async function createDespatchAdvice(event: any) {
     };
 }
 
-
 export async function listDespatchAdvices(event: any) {
     return {
         statusCode: 501,
@@ -279,4 +278,94 @@ export async function deleteDespatchAdvice(event: any) {
             message: "deleteDespatchAdvice is not implemented yet",
         }),
     };
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// ////////////////////// cancelFulfilment /////////////////////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Cancels the fulfilment of a despatch advice.
+ *
+ * POST /despatch-advices/{despatchId}/fulfilment-cancellation
+ * Responses:
+ *   200 — cancelled successfully, returns { status: "FULFILMENT_CANCELLED" }
+ *   404 — despatch advice not found
+ *   409 — already received or already cancelled
+ *   500 — DynamoDB or unexpected error
+ */
+export async function cancelFulfilment(event: any, despatchId: string) {
+    try {
+        const result = await dynamo.send(
+            new GetItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId: despatchId }),
+            })
+        );
+
+        if (!result.Item) {
+            return {
+                statusCode: 404,
+                body: JSON.stringify({
+                    error: "NotFound",
+                    message: "Despatch advice not found",
+                }),
+            };
+        }
+
+        const item = unmarshall(result.Item) as { status?: string };
+
+        if (item.status === "RECEIVED") {
+            return {
+                statusCode: 409,
+                body: JSON.stringify({
+                    error: "Conflict",
+                    message: "Despatch advice has already been received",
+                }),
+            };
+        }
+
+        if (item.status === "FULFILMENT_CANCELLED") {
+            return {
+                statusCode: 409,
+                body: JSON.stringify({
+                    error: "Conflict",
+                    message: "Despatch advice has already been cancelled",
+                }),
+            };
+        }
+
+        if (item.status === undefined) {
+            return {
+                statusCode: 409,
+                body: JSON.stringify({
+                    error: "Conflict",
+                    message: "Unknown status on despatch advice",
+                }),
+            };
+        }
+
+        await dynamo.send(
+            new UpdateItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId: despatchId }),
+                UpdateExpression: "SET #s = :s",
+                ExpressionAttributeNames: { "#s": "status" },
+                ExpressionAttributeValues: marshall({ ":s": "FULFILMENT_CANCELLED" }),
+            })
+        );
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ status: "FULFILMENT_CANCELLED" }),
+        };
+    } catch (err: any) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                error: "InternalServerError",
+                message: err.message ?? "Internal server error",
+            }),
+        };
+    }
 }
