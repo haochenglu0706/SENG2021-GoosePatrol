@@ -1,6 +1,6 @@
 import { PutItemCommand, GetItemCommand, ScanCommand, DeleteItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
-import { dynamo } from "../db.js";
+import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Types (from swagger.yaml) ////////////////////////////
@@ -43,6 +43,43 @@ interface DespatchAdvice {
 }
 
 /// /////////////////////////////////////////////////////////////////////////////
+/// ////////////////////// Body parsing /////////////////////////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
+
+// Extracts the request body from either:
+//   - a plain object passed directly (unit tests)
+//   - an API Gateway event with event.body as a string (Lambda)
+function parseBody(event: any): { body: any; error?: string } {
+    // unit tests pass the body object directly — no event wrapper
+    if (event && event.documentId !== undefined) {
+        return { body: event };
+    }
+    if (event && event.senderId !== undefined) {
+        return { body: event };
+    }
+    if (event && event.despatchSupplierParty !== undefined) {
+        return { body: event };
+    }
+
+    // Lambda / API Gateway — body is a JSON string on event.body
+    if (event && typeof event.body === "string") {
+        try {
+            return { body: JSON.parse(event.body) };
+        } catch {
+            return { body: null, error: "Invalid JSON body" };
+        }
+    }
+
+    // event.body is already an object (some Lambda proxy configurations)
+    if (event && event.body && typeof event.body === "object") {
+        return { body: event.body };
+    }
+
+    // fallback — treat the whole event as the body
+    return { body: event ?? {} };
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Validation ///////////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
 
@@ -81,10 +118,9 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
             const rawParty = body.despatchSupplierParty.party;
             const party: Party = {};
 
-            // optional: name
             if (rawParty.name) party.name = rawParty.name;
 
-            // optional: postalAddress — all subfields are optional per swagger
+            // optional: postalAddress — all subfields optional per swagger
             if (rawParty.postalAddress) {
                 const raw = rawParty.postalAddress;
                 const postalAddress: PostalAddress = {};
@@ -101,7 +137,7 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
                 party.postalAddress = postalAddress;
             }
 
-            // optional: contact — all subfields are optional per swagger
+            // optional: contact — all subfields optional per swagger
             if (rawParty.contact) {
                 const raw = rawParty.contact;
                 const contact: Contact = {};
@@ -124,53 +160,63 @@ function sanitiseDespatchAdvice(body: any): DespatchAdvice {
 /// /////////////////////////////////////////////////////////////////////////////
 
 /**
- * Creates a new despatch advice document.
+ * Creates a new despatch advice document and writes it to DynamoDB.
+ *
+ * Accepts two calling conventions:
+ *   - createDespatchAdvice(bodyObject)        — used by unit tests
+ *   - createDespatchAdvice(apiGatewayEvent)   — used by Lambda
  *
  * POST /despatch-advices
- * Request body: DespatchAdvice schema (swagger.yaml)
  * Responses:
  *   201 — document created, returns DespatchAdvice
- *   400 — missing required fields
+ *   400 — missing or invalid required fields
  *   409 — document with same documentId already exists
- *   500 — DynamoDB error
- *
- * @param body - raw request body
+ *   500 — DynamoDB or unexpected error
  */
-export async function createDespatchAdvice(body: any) {
-    // 1. validate required fields before touching DynamoDB
+export async function createDespatchAdvice(event: any) {
+    // 1. parse body — handles both direct object (tests) and Lambda event
+    const { body, error: parseError } = parseBody(event);
+    if (parseError) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({
+                error: "BadRequest",
+                message: parseError,
+            }),
+        };
+    }
+
+    // 2. validate required fields before touching DynamoDB
     const validationError = validateDespatchAdvice(body);
     if (validationError) {
         return {
             statusCode: 400,
-            body: JSON.stringify({ message: validationError }),
+            body: JSON.stringify({
+                error: "BadRequest",
+                message: validationError,
+            }),
         };
     }
 
-    // 2. sanitise — only keep fields defined in the swagger schema
+    // 3. sanitise — only keep fields defined in the swagger schema
     const item = sanitiseDespatchAdvice(body);
 
-    // 3. write to DynamoDB
+    // 4. write to DynamoDB
     try {
         await dynamo.send(
             new PutItemCommand({
-                TableName: "DespatchAdvices",
+                TableName: DESPATCH_ADVICES_TABLE,
                 Item: marshall(item, { removeUndefinedValues: true }),
-                // prevent silent overwrite of an existing document
                 ConditionExpression: "attribute_not_exists(documentId)",
             })
         );
-
-        return {
-            statusCode: 201,
-            body: JSON.stringify(item),
-        };
-
     } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
             return {
                 statusCode: 409,
                 body: JSON.stringify({
-                    message: `Despatch advice with documentId '${body.documentId}' already exists`,
+                    error: "Conflict",
+                    message: `A despatch advice with documentId '${body.documentId}' already exists`,
                 }),
             };
         }
@@ -178,10 +224,17 @@ export async function createDespatchAdvice(body: any) {
         return {
             statusCode: 500,
             body: JSON.stringify({
+                error: "InternalServerError",
                 message: err.message ?? "Internal server error",
             }),
         };
     }
+
+    // 5. return the created document
+    return {
+        statusCode: 201,
+        body: JSON.stringify(item),
+    };
 }
 
 /// /////////////////////////////////////////////////////////////////////////////
@@ -192,6 +245,7 @@ export async function listDespatchAdvices(event: any) {
     return {
         statusCode: 501,
         body: JSON.stringify({
+            error: "NotImplemented",
             message: "listDespatchAdvices is not implemented yet",
         }),
     };
@@ -201,6 +255,7 @@ export async function getDespatchAdvice(event: any) {
     return {
         statusCode: 501,
         body: JSON.stringify({
+            error: "NotImplemented",
             message: "getDespatchAdvice is not implemented yet",
         }),
     };
@@ -210,6 +265,7 @@ export async function updateDespatchAdvice(event: any) {
     return {
         statusCode: 501,
         body: JSON.stringify({
+            error: "NotImplemented",
             message: "updateDespatchAdvice is not implemented yet",
         }),
     };
@@ -219,6 +275,7 @@ export async function deleteDespatchAdvice(event: any) {
     return {
         statusCode: 501,
         body: JSON.stringify({
+            error: "NotImplemented",
             message: "deleteDespatchAdvice is not implemented yet",
         }),
     };
