@@ -15,7 +15,7 @@ import {
   
   const client = new DynamoDBClient({
     region: "ap-southeast-2",
-    endpoint: "http://localhost:8000",  // uncomment for DynamoDB Local
+    // endpoint: "http://localhost:8000",  // uncomment for DynamoDB Local
   });
   
   
