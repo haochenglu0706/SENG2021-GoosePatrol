@@ -1,4 +1,4 @@
-import { handler, getReceiptAdvice } from '../src/handlers/Receipt-Advice/receiptAdvice';
+import { handler, getReceiptAdvice } from '../src/routes/receiptAdvice.js';
 import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 
