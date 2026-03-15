@@ -22,11 +22,11 @@ export async function route(event: any) {
   // DESPATCH ROUTES
 
   if (method === "GET" && path === "/despatch-advices") {
-    return despatch.list(event);
+    return despatch.listDespatchAdvices(event);
   }
 
   if (method === "POST" && path === "/despatch-advices") {
-    return despatch.create(event);
+    return despatch.createDespatchAdvice(event);
   }
 
   return {
