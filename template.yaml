@@ -52,11 +52,31 @@ Resources: #add more routes here using this format
           Properties:
             Path: /sessions/{sessionId}
             Method: delete
-        CreateDespatch:
+        # CreateDespatch:
+        #   Type: Api
+        #   Properties:
+        #     Path: /despatch-advice
+        #     Method: post
+        CreateDespatchAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advice
+            Path: /despatch-advices
             Method: post
+        GetDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{documentId}
+            Method: get
+        UpdateDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{documentId}
+            Method: put
+        DeleteDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{documentId}
+            Method: delete
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
