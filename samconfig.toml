@@ -15,13 +15,13 @@ lint = true
 
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
+confirm_changeset = false
 resolve_s3 = true
-region = "ap-southeast-2"
 stack_name = "goosepatrol-auth"
 s3_prefix = "goosepatrol-auth"
 disable_rollback = true
 image_repositories = []
+parameter_overrides = "ClientsTableName=\"Clients\" SessionsTableName=\"Sessions\" DocumentsTableName=\"DespatchAdvices\" ReceiptAdvicesTableName=\"ReceiptAdvices\""
 
 [default.package.parameters]
 resolve_s3 = true
