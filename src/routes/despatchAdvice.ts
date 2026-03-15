@@ -3,25 +3,64 @@
  * These will eventually contain the real DynamoDB logic.
  */
 
-export async function list(event: any) {
-  // TODO: implement real list logic
-  return {
-    statusCode: 501,
-    body: JSON.stringify({
-      error: "NotImplemented",
-      message: "list despatch-advices route is not implemented yet",
-    }),
-  };
-}
+import { randomBytes, scryptSync } from "crypto";
+import { PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { v4 as uuidv4 } from "uuid";
+import { dynamo, CLIENTS_TABLE, SESSIONS_TABLE } from "../db.js";
 
-export async function create(event: any) {
-  // TODO: implement real create logic
+
+export async function createDespatchAdvice(event: any) {
+  // TODO: implement this 
   return {
     statusCode: 501,
     body: JSON.stringify({
-      error: "NotImplemented",
+      error: "Not implemented",
       message: "create despatch-advice route is not implemented yet",
     }),
   };
 }
 
+export async function getDespatchAdvices(event: any) {
+  // TODO: Implement this 
+  return {
+    statusCode: 501,
+    body: JSON.stringify({
+      error: "Not implemented",
+      message: "create despatch-advice route is not implemented yet",
+    }),
+  };
+}
+
+export async function getDespatchAdvice(event: any) {
+  // TODO: implement this 
+  return {
+    statusCode: 501,
+    body: JSON.stringify({
+      error: "Not implemented",
+      message: "create despatch-advice route is not implemented yet",
+    }),
+  };
+}
+
+export async function updateDespatchAdvice(event: any) {
+  // TODO: implement this
+  return {
+    statusCode: 501,
+    body: JSON.stringify({
+      error: "Not implemented",
+      message: "create despatch-advice route is not implemented yet",
+    }),
+  };
+}
+
+export async function deleteDespatchAdvice(event: any) {
+  // TODO: implement this
+  return {
+    statusCode: 501,
+    body: JSON.stringify({
+      error: "Not implemented",
+      message: "create despatch-advice route is not implemented yet",
+    }),
+  };
+}
