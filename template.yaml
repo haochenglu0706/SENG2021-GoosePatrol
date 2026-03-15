@@ -20,7 +20,7 @@ Parameters:
   ReceiptAdvicesTableName:
     Type: String
     Default: ReceiptAdvices
-    Description: Name of the ReceiptAdvices DynamoDB table
+    Description: Name of the existing ReceiptAdvices DynamoDB table
 
 Globals:
   Function:
@@ -69,17 +69,21 @@ Resources:
           Properties:
             Path: /despatch-advices
             Method: post
+        GetDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}
+            Method: get
         CancelFulfilment:
           Type: Api
           Properties:
-            Path: /despatch-advices/{despatchAdviceId}/fulfilment-cancellation
+            Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
-
         # ReceiptAdvice routes
         CreateReceiptAdvice:
           Type: Api
           Properties:
-            Path: /despatch-advices/{despatchAdviceId}/receipt-advices
+            Path: /despatch-advices/{despatchId}/receipt-advices
             Method: post
 
       Environment:
@@ -87,8 +91,8 @@ Resources:
           TABLE_NAME: !Ref DocumentsTableName
           CLIENTS_TABLE_NAME: !Ref ClientsTableName
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
-          DESPATCH_TABLE_NAME: !Ref DocumentsTableName
-          RECEIPT_TABLE_NAME: !Ref ReceiptAdvicesTableName
+          DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
+          RECEIPT_ADVICES_TABLE_NAME: !Ref ReceiptAdvicesTableName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
@@ -106,6 +110,38 @@ Resources:
         Sourcemap: true
         EntryPoints:
           - handler.ts
+
+  # ReceiptAdvices table — stores receipt advice documents linked to despatch advices.
+  # receiptAdviceId is the partition key.
+  # GSIs support lookup by despatchAdviceId and by submitterId.
+  DocumentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: StackfeedDocuments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: receiptAdviceId
+          AttributeType: S
+        - AttributeName: despatchAdviceId
+          AttributeType: S
+        - AttributeName: submitterId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: receiptAdviceId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: despatch-advice-index
+          KeySchema:
+            - AttributeName: despatchAdviceId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: submitter-index
+          KeySchema:
+            - AttributeName: submitterId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
 Outputs:
   ApiEndpoint:
