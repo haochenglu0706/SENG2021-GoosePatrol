@@ -116,8 +116,8 @@ export async function login(event: any) {
     new PutItemCommand({
       TableName: SESSIONS_TABLE,
       Item: marshall({
-        sessionId,
-        clientId,
+        sessionId: sessionId,
+        clientId: clientId,
       }),
     })
   );
@@ -125,8 +125,8 @@ export async function login(event: any) {
   return {
     statusCode: 201,
     body: JSON.stringify({
-      sessionId,
-      clientId,
+      sessionId: sessionId,
+      clientId: clientId,
     }),
   };
 }
@@ -204,9 +204,9 @@ export async function register(event: any) {
     new PutItemCommand({
       TableName: CLIENTS_TABLE,
       Item: marshall({
-        clientId,
+        clientId: clientId,
         username: trimmedUsername,
-        passwordHash,
+        passwordHash: passwordHash,
       }),
     })
   );
@@ -214,7 +214,7 @@ export async function register(event: any) {
   return {
     statusCode: 201,
     body: JSON.stringify({
-      clientId,
+      clientId: clientId,
       username: trimmedUsername,
     }),
   };
