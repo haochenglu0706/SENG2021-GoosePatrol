@@ -1,12 +1,17 @@
 {
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1007.0",
-    "uuid": "^13.0.0",
-    "esbuild": "^0.27.3"
+    "esbuild": "^0.27.3",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.161",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
     "@types/uuid": "^10.0.0",
+    "aws-sdk-client-mock": "^4.1.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
   }
 }
