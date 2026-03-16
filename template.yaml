@@ -20,7 +20,7 @@ Parameters:
   ReceiptAdvicesTableName:
     Type: String
     Default: ReceiptAdvices
-    Description: ReceiptAdvices
+    Description: Name of the existing ReceiptAdvices DynamoDB table
 
 Globals:
   Function:
@@ -58,7 +58,7 @@ Resources:
             Path: /sessions/{sessionId}
             Method: delete
 
-        # DespatchAdvice routes — fixed from /despatch-advice to /despatch-advices
+        # DespatchAdvice routes
         ListDespatchAdvices:
           Type: Api
           Properties:
@@ -69,6 +69,21 @@ Resources:
           Properties:
             Path: /despatch-advices
             Method: post
+        GetDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}
+            Method: get
+        UpdateDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}
+            Method: put
+        DeleteDespatchAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}
+            Method: delete
         CancelFulfilment:
           Type: Api
           Properties:
@@ -78,15 +93,21 @@ Resources:
         getReceiptAdvice:
           Type: Api
           Properties:
-            Path: /receipt-advices
+            Path: /receipt-advices/{receiptAdviceId}
             Method: get
+        # ReceiptAdvice routes
+        CreateReceiptAdvice:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}/receipt-advices
+            Method: post
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
           CLIENTS_TABLE_NAME: !Ref ClientsTableName
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
           DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
-          RECEIPT_TABLE_NAME: !Ref ReceiptAdvicesTableName
+          RECEIPT_ADVICES_TABLE_NAME: !Ref ReceiptAdvicesTableName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
@@ -105,6 +126,9 @@ Resources:
         EntryPoints:
           - handler.ts
 
+  # ReceiptAdvices table — stores receipt advice documents linked to despatch advices.
+  # receiptAdviceId is the partition key.
+  # GSIs support lookup by despatchAdviceId and by submitterId.
   DocumentsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -113,14 +137,14 @@ Resources:
       SSESpecification:
         SSEEnabled: true  #Encrypts the dynamoDB
       AttributeDefinitions:
-        - AttributeName: documentId
-          AttributeType: S
-        - AttributeName: submitterId
+        - AttributeName: receiptAdviceId
           AttributeType: S
         - AttributeName: despatchAdviceId
           AttributeType: S
+        - AttributeName: submitterId
+          AttributeType: S
       KeySchema:
-        - AttributeName: documentId
+        - AttributeName: receiptAdviceId
           KeyType: HASH
       GlobalSecondaryIndexes:
         - IndexName: despatch-advice-index
@@ -135,7 +159,7 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
- 
+
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL for Prod stage
@@ -152,6 +176,6 @@ Outputs:
   DocumentsTableName:
     Description: DespatchAdvices DynamoDB table in use
     Value: !Ref DocumentsTableName
-  ReceiptAdvicesTableName:
-    Description: ReceiptAdvices DynamoDB table in use
-    Value: !Ref ReceiptAdvicesTableName
+  # ReceiptAdvicesTableName:
+  #   Description: ReceiptAdvices DynamoDB table in use
+  #   Value: !Ref ReceiptAdvicesTableName
