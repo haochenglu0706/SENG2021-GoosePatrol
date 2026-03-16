@@ -17,6 +17,10 @@ Parameters:
     Type: String
     Default: DespatchAdvices
     Description: Name of the existing documents/despatch DynamoDB table
+  ReceiptAdvicesTableName:
+    Type: String
+    Default: ReceiptAdvices
+    Description: ReceiptAdvices
 
 Globals:
   Function:
@@ -70,12 +74,19 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
+        #ReceiptAdvice routes
+        getReceiptAdvice:
+          Type: Api
+          Properties:
+            Path: /receipt-advices
+            Method: get
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
           CLIENTS_TABLE_NAME: !Ref ClientsTableName
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
           DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
+          RECEIPT_TABLE_NAME: !Ref ReceiptAdvicesTableName
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
@@ -83,6 +94,8 @@ Resources:
             TableName: !Ref ClientsTableName
         - DynamoDBCrudPolicy:
             TableName: !Ref SessionsTableName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ReceiptAdvicesTableName
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -97,13 +110,17 @@ Resources:
     Properties:
       TableName: StackfeedDocuments
       BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true  #Encrypts the dynamoDB
       AttributeDefinitions:
         - AttributeName: documentId
           AttributeType: S
         - AttributeName: submitterId
           AttributeType: S
+        - AttributeName: despatchAdviceId
+          AttributeType: S
       KeySchema:
-        - AttributeName: receiptAdviceId
+        - AttributeName: documentId
           KeyType: HASH
       GlobalSecondaryIndexes:
         - IndexName: despatch-advice-index
