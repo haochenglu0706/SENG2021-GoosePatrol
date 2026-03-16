@@ -176,6 +176,6 @@ Outputs:
   DocumentsTableName:
     Description: DespatchAdvices DynamoDB table in use
     Value: !Ref DocumentsTableName
-  # ReceiptAdvicesTableName:
-  #   Description: ReceiptAdvices DynamoDB table in use
-  #   Value: !Ref ReceiptAdvicesTableName
+  ReceiptAdvicesTableName:
+    Description: ReceiptAdvices DynamoDB table in use
+    Value: !Ref ReceiptAdvicesTableName
