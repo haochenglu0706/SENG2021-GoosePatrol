@@ -89,13 +89,18 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
+        #ReceiptAdvice routes
+        getReceiptAdvice:
+          Type: Api
+          Properties:
+            Path: /receipt-advices/{receiptAdviceId}
+            Method: get
         # ReceiptAdvice routes
         CreateReceiptAdvice:
           Type: Api
           Properties:
             Path: /despatch-advices/{despatchId}/receipt-advices
             Method: post
-
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName
@@ -129,6 +134,8 @@ Resources:
     Properties:
       TableName: StackfeedDocuments
       BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true  #Encrypts the dynamoDB
       AttributeDefinitions:
         - AttributeName: receiptAdviceId
           AttributeType: S
@@ -169,6 +176,6 @@ Outputs:
   DocumentsTableName:
     Description: DespatchAdvices DynamoDB table in use
     Value: !Ref DocumentsTableName
-  # ReceiptAdvicesTableName:
-  #   Description: ReceiptAdvices DynamoDB table in use
-  #   Value: !Ref ReceiptAdvicesTableName
+  ReceiptAdvicesTableName:
+    Description: ReceiptAdvices DynamoDB table in use
+    Value: !Ref ReceiptAdvicesTableName
