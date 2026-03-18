@@ -49,32 +49,29 @@ interface DespatchAdvice {
 /// ////////////////////// Shared response helpers //////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
 
+import { CORS_HEADERS } from "../cors.js";
+
 function ok(data: object, statusCode = 200) {
-    return { statusCode, body: JSON.stringify(data) };
+  return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(data) };
 }
 
 function notFound(message: string) {
-    return { statusCode: 404, body: JSON.stringify({ error: "NotFound", message }) };
+  return { statusCode: 404, headers: CORS_HEADERS, body: JSON.stringify({ error: "NotFound", message }) };
 }
 
 function badRequest(message: string) {
-    return { statusCode: 400, body: JSON.stringify({ error: "BadRequest", message }) };
+  return { statusCode: 400, headers: CORS_HEADERS, body: JSON.stringify({ error: "BadRequest", message }) };
 }
 
 function conflict(message: string) {
-    return { statusCode: 409, body: JSON.stringify({ error: "Conflict", message }) };
+  return { statusCode: 409, headers: CORS_HEADERS, body: JSON.stringify({ error: "Conflict", message }) };
 }
 
 function internalError(err: any) {
-    return {
-        statusCode: 500,
-        body: JSON.stringify({
-            error: "InternalServerError",
-            message: err?.message ?? "Internal server error",
-        }),
-    };
+  return { statusCode: 500, headers: CORS_HEADERS, body: JSON.stringify(
+    { error: "InternalServerError", message: err?.message ?? "Internal server error" }
+ ) };
 }
-
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Body parsing /////////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////

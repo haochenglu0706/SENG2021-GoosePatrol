@@ -3,6 +3,7 @@ import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand } from 
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, CLIENTS_TABLE, SESSIONS_TABLE } from "../db.js";
+import { CORS_HEADERS } from "../cors.js";
 
 const USERNAME_INDEX = "username-index";
 
@@ -60,6 +61,7 @@ export async function login(event: any) {
   } catch {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "Invalid JSON body",
@@ -71,6 +73,7 @@ export async function login(event: any) {
   if (typeof username !== "string" || typeof password !== "string") {
     return {
       statusCode: 401,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Unauthorized",
         message: "username and password are required",
@@ -82,6 +85,7 @@ export async function login(event: any) {
   if (!trimmedUsername) {
     return {
       statusCode: 401,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Unauthorized",
         message: "username and password are required",
@@ -101,6 +105,7 @@ export async function login(event: any) {
   if (!queryResult.Items || queryResult.Items.length === 0) {
     return {
       statusCode: 401,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Unauthorized",
         message: "Invalid username or password",
@@ -112,6 +117,7 @@ export async function login(event: any) {
   if (!clientItem) {
     return {
       statusCode: 401,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Unauthorized",
         message: "Invalid username or password",
@@ -130,6 +136,7 @@ export async function login(event: any) {
   ) {
     return {
       statusCode: 401,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Unauthorized",
         message: "Invalid username or password",
@@ -151,6 +158,7 @@ export async function login(event: any) {
 
   return {
     statusCode: 201,
+    headers: CORS_HEADERS,
     body: JSON.stringify({
       sessionId: sessionId,
       clientId: clientId,
@@ -165,6 +173,7 @@ export async function register(event: any) {
   } catch {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "Invalid JSON body",
@@ -176,6 +185,7 @@ export async function register(event: any) {
   if (typeof username !== "string" || typeof password !== "string") {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "username and password are required",
@@ -187,6 +197,7 @@ export async function register(event: any) {
   if (!trimmedUsername) {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "username cannot be empty",
@@ -197,6 +208,7 @@ export async function register(event: any) {
   if (isPasswordWeak(password)) {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message:
@@ -217,6 +229,7 @@ export async function register(event: any) {
   if (queryResult.Items && queryResult.Items.length > 0) {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Conflict",
         message: "A client with this username already exists",
@@ -240,6 +253,7 @@ export async function register(event: any) {
 
   return {
     statusCode: 201,
+    headers: CORS_HEADERS,
     body: JSON.stringify({
       clientId: clientId,
       username: trimmedUsername,
@@ -253,6 +267,7 @@ export async function logout(event: any) {
   if (typeof sessionId !== "string" || !sessionId.trim()) {
     return {
       statusCode: 404,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "NotFound",
         message: "Session not found",
@@ -269,6 +284,7 @@ export async function logout(event: any) {
   if (!existing.Item) {
     return {
       statusCode: 404,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "NotFound",
         message: "Session not found",
@@ -283,6 +299,7 @@ export async function logout(event: any) {
   );
   return {
     statusCode: 204,
+    headers: CORS_HEADERS,
     body: "",
   };
 }

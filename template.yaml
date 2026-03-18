@@ -95,12 +95,35 @@ Resources:
           Properties:
             Path: /receipt-advices/{receiptAdviceId}
             Method: get
-        # ReceiptAdvice routes
         CreateReceiptAdvice:
           Type: Api
           Properties:
             Path: /despatch-advices/{despatchId}/receipt-advices
             Method: post
+        # documentation and other 
+        GetHealth:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+
+        GetDocs:
+          Type: Api
+          Properties:
+            Path: /docs
+            Method: get
+
+        GetSwaggerYaml:
+          Type: Api
+          Properties:
+            Path: /swagger.yaml
+            Method: get
+        OptionsAll:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: options
+            
       Environment:
         Variables:
           TABLE_NAME: !Ref DocumentsTableName

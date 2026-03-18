@@ -1,6 +1,11 @@
 import * as auth from "./routes/auth.js";
 import * as despatch from "./routes/despatchAdvice.js";
 import * as receipt from "./routes/receiptAdvice.js";
+import * as health from "./routes/health.js";
+import * as docs from "./routes/docs.js"
+import { readFileSync } from "fs";
+import { join } from "path";
+import { CORS_HEADERS } from "./cors.js";
 
 /**
  * Simple router that inspects the incoming API Gateway event
@@ -9,6 +14,15 @@ import * as receipt from "./routes/receiptAdvice.js";
 export async function route(event: any) {
   const method: string = event.httpMethod;
   const path: string = event.path;
+
+  // Handle CORS preflight for ALL routes
+  if (method === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: CORS_HEADERS,
+      body: "",
+    };
+  }
 
   // AUTH ROUTES
 
@@ -72,9 +86,34 @@ export async function route(event: any) {
     };
     return receipt.createReceiptAdvice(event);
   }
+  if (method === "GET" && (path === "/health" || path === "/health/")) {
+    return health.getHealth(event);
+  }
+
+  // DOCS ROUTE — redirect to Swagger UI
+  // Use getDocsInline(event) here if you want the inline Swagger UI instead.
+  if (method === "GET" && (path === "/docs" || path === "/docs/")) {
+    return docs.getDocs(event);
+  }
+
+  if (method === "GET" && path === "/swagger.yaml") {
+    const { readFileSync } = await import("fs");
+
+    const yaml = readFileSync("/var/task/swagger.yaml", "utf-8");
+
+    return {
+      statusCode: 200,
+      headers: {
+        "Content-Type": "application/yaml",
+        "Access-Control-Allow-Origin": "*",
+      },
+      body: yaml,
+    };
+  }
 
   return {
     statusCode: 404,
+    headers: CORS_HEADERS,
     body: JSON.stringify({
       error: "NotFound",
       message: "Route not found",

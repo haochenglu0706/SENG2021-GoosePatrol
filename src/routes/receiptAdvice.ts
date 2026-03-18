@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
+import { CORS_HEADERS } from "../cors.js";
 
 const dynamo = new DynamoDBClient({ region: process.env.AWS_REGION ?? "ap-southeast-2" });
 
@@ -25,6 +26,7 @@ export async function getReceiptAdvice(event: any) {
   if (!receiptAdviceId) {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "receiptAdviceId path parameter is required",
@@ -45,6 +47,7 @@ export async function getReceiptAdvice(event: any) {
     if (!result.Item) {
       return {
         statusCode: 404,
+        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: "NotFound",
           message: `Receipt advice '${receiptAdviceId}' not found`,
@@ -57,6 +60,7 @@ export async function getReceiptAdvice(event: any) {
     console.error("DynamoDB GetItem (ReceiptAdvices) error:", err);
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: "InternalServerError", message: "Unexpected error" }),
     };
   }
@@ -65,6 +69,7 @@ export async function getReceiptAdvice(event: any) {
   if (receiptItem.documentStatusCode === "FULLY_RECEIVED") {
     return {
       statusCode: 409,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Conflict",
         message: "This receipt advice has already been fully received",
@@ -75,6 +80,7 @@ export async function getReceiptAdvice(event: any) {
   // 4. Return the receipt advice document
   return {
     statusCode: 200,
+    headers: CORS_HEADERS,
     body: JSON.stringify(receiptItem),
   };
 }
@@ -91,6 +97,7 @@ export async function createReceiptAdvice(event: any) {
   if (!despatchAdviceId) {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "despatchAdviceId path parameter is required",
@@ -108,6 +115,7 @@ export async function createReceiptAdvice(event: any) {
   } catch {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "Invalid JSON body",
@@ -121,6 +129,7 @@ export async function createReceiptAdvice(event: any) {
   if (!Array.isArray(receiptLines) || receiptLines.length === 0) {
     return {
       statusCode: 400,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "BadRequest",
         message: "receiptLines must be a non-empty array",
@@ -132,6 +141,7 @@ export async function createReceiptAdvice(event: any) {
     if (line.receivedQuantity === undefined || line.receivedQuantity === null) {
       return {
         statusCode: 400,
+        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: "BadRequest",
           message: "Each receiptLine must include receivedQuantity",
@@ -141,6 +151,7 @@ export async function createReceiptAdvice(event: any) {
     if (typeof line.receivedQuantity !== "number") {
       return {
         statusCode: 400,
+        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: "BadRequest",
           message: "receivedQuantity must be a number",
@@ -162,6 +173,7 @@ export async function createReceiptAdvice(event: any) {
     if (!result.Item) {
       return {
         statusCode: 404,
+        headers: CORS_HEADERS,
         body: JSON.stringify({
           error: "NotFound",
           message: `Despatch advice '${despatchAdviceId}' not found`,
@@ -174,6 +186,7 @@ export async function createReceiptAdvice(event: any) {
     console.error("DynamoDB GetItem (DespatchAdvices) error:", err);
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: "InternalServerError", message: "Unexpected error" }),
     };
   }
@@ -182,6 +195,7 @@ export async function createReceiptAdvice(event: any) {
   if (despatchItem.status === "RECEIVED") {
     return {
       statusCode: 409,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "Conflict",
         message: "This despatch advice has already been fully received",
@@ -229,6 +243,7 @@ export async function createReceiptAdvice(event: any) {
     console.error("DynamoDB PutItem (ReceiptAdvices) error:", err);
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({ error: "InternalServerError", message: "Unexpected error" }),
     };
   }
@@ -252,6 +267,7 @@ export async function createReceiptAdvice(event: any) {
   // 8. Return success
   return {
     statusCode: 200,
+    headers: CORS_HEADERS,
     body: JSON.stringify({ receiptAdviceId }),
   };
 }
