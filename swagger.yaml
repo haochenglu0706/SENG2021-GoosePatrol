@@ -3,7 +3,8 @@ info:
   title: Despatch & Order Management API
   description: API for managing clients, sessions, despatch advices, order changes, order cancellations, and fulfilment cancellations.
   version: 1.0.0
-
+servers:
+  - url: https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod
 tags:
   - name: Auth
     description: Client registration and session management
@@ -17,12 +18,11 @@ tags:
     description: Fulfilment cancellation operations
   - name: ReceiptAdvice
     description: Receipt advice document operations
-
 paths:
-
   /clients:
     post:
-      tags: [Auth]
+      tags:
+        - Auth
       summary: Register a new client
       requestBody:
         required: true
@@ -39,10 +39,10 @@ paths:
                 $ref: '#/components/schemas/Client'
         '400':
           $ref: '#/components/responses/BadRequest'
-
   /clients/{clientId}:
     get:
-      tags: [Auth]
+      tags:
+        - Auth
       summary: Get a client by ID
       parameters:
         - $ref: '#/components/parameters/ClientId'
@@ -55,17 +55,26 @@ paths:
                 $ref: '#/components/schemas/Client'
         '404':
           $ref: '#/components/responses/NotFound'
-
   /sessions:
     post:
-      tags: [Auth]
+      tags:
+        - Auth
       summary: Create a new session (login)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SessionRequest'
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
       responses:
         '201':
           description: Session created
@@ -75,10 +84,10 @@ paths:
                 $ref: '#/components/schemas/Session'
         '401':
           $ref: '#/components/responses/Unauthorized'
-
   /sessions/{sessionId}:
     delete:
-      tags: [Auth]
+      tags:
+        - Auth
       summary: Delete a session (logout)
       parameters:
         - $ref: '#/components/parameters/SessionIdPath'
@@ -87,10 +96,10 @@ paths:
           description: Session deleted
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /despatch-advices:    # for testing only 
+  /despatch-advices:
     get:
-      tags: [DespatchAdvice]
+      tags:
+        - DespatchAdvice
       summary: List all despatch advices
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -104,7 +113,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/DespatchAdvice'
     post:
-      tags: [DespatchAdvice]
+      tags:
+        - DespatchAdvice
       summary: Create a new despatch advice
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -123,10 +133,10 @@ paths:
                 $ref: '#/components/schemas/DespatchAdvice'
         '400':
           $ref: '#/components/responses/BadRequest'
-
   /despatch-advices/{documentId}:
     get:
-      tags: [DespatchAdvice]
+      tags:
+        - DespatchAdvice
       summary: Get a despatch advice by document ID
       parameters:
         - $ref: '#/components/parameters/DocumentId'
@@ -141,7 +151,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     put:
-      tags: [DespatchAdvice]
+      tags:
+        - DespatchAdvice
       summary: Update a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
@@ -162,7 +173,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [DespatchAdvice]
+      tags:
+        - DespatchAdvice
       summary: Delete a despatch advice
       parameters:
         - $ref: '#/components/parameters/DocumentId'
@@ -172,10 +184,10 @@ paths:
           description: Despatch advice deleted
         '404':
           $ref: '#/components/responses/NotFound'
-
   /despatch-advices/{despatchAdviceId}/receipt-advices:
     post:
-      tags: [ReceiptAdvice]
+      tags:
+        - ReceiptAdvice
       summary: Delivery party confirms receipt or reports discrepancies.
       operationId: createReceiptAdvice
       parameters:
@@ -190,26 +202,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ReceiptAdviceCreateRequest"
+              $ref: '#/components/schemas/ReceiptAdviceCreateRequest'
       responses:
-        "200":
+        '200':
           description: Receipt advice created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/inline_response_200_3"
-        "404":
-          $ref: "#/components/responses/DespatchAdviceNotFound"
-        "409":
+                $ref: '#/components/schemas/inline_response_200_3'
+        '404':
+          $ref: '#/components/responses/DespatchAdviceNotFound'
+        '409':
           description: Already fully received
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
+                $ref: '#/components/schemas/ErrorResponse'
   /receipt-advices/{receiptAdviceId}:
     get:
-      tags: [ReceiptAdvice]
+      tags:
+        - ReceiptAdvice
       summary: Obtain the Receipt Advice document.
       operationId: getReceiptAdviceById
       parameters:
@@ -220,18 +232,18 @@ paths:
             type: string
         - $ref: '#/components/parameters/SessionId'
       responses:
-        "200":
+        '200':
           description: Receipt Advice document
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReceiptAdvice"
-        "404":
-          $ref: "#/components/responses/ReceiptAdviceNotFound"
-
+                $ref: '#/components/schemas/ReceiptAdvice'
+        '404':
+          $ref: '#/components/responses/ReceiptAdviceNotFound'
   /order-changes:
     get:
-      tags: [OrderChange]
+      tags:
+        - OrderChange
       summary: List all order changes
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -245,7 +257,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/OrderChange'
     post:
-      tags: [OrderChange]
+      tags:
+        - OrderChange
       summary: Create an order change
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -264,10 +277,10 @@ paths:
                 $ref: '#/components/schemas/OrderChange'
         '400':
           $ref: '#/components/responses/BadRequest'
-
   /order-changes/{id}:
     get:
-      tags: [OrderChange]
+      tags:
+        - OrderChange
       summary: Get an order change by ID
       parameters:
         - $ref: '#/components/parameters/Id'
@@ -282,7 +295,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     put:
-      tags: [OrderChange]
+      tags:
+        - OrderChange
       summary: Update an order change
       parameters:
         - $ref: '#/components/parameters/Id'
@@ -303,7 +317,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [OrderChange]
+      tags:
+        - OrderChange
       summary: Delete an order change
       parameters:
         - $ref: '#/components/parameters/Id'
@@ -313,10 +328,10 @@ paths:
           description: Order change deleted
         '404':
           $ref: '#/components/responses/NotFound'
-
-  /order-cancellations:     # for testing only
+  /order-cancellations:
     get:
-      tags: [OrderCancellation]
+      tags:
+        - OrderCancellation
       summary: List all order cancellations
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -330,7 +345,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/OrderCancellation'
     post:
-      tags: [OrderCancellation]
+      tags:
+        - OrderCancellation
       summary: Create an order cancellation
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -349,10 +365,10 @@ paths:
                 $ref: '#/components/schemas/OrderCancellation'
         '400':
           $ref: '#/components/responses/BadRequest'
-
   /order-cancellations/{cancellationId}:
     get:
-      tags: [OrderCancellation]
+      tags:
+        - OrderCancellation
       summary: Get an order cancellation by ID
       parameters:
         - $ref: '#/components/parameters/CancellationId'
@@ -367,7 +383,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     put:
-      tags: [OrderCancellation]
+      tags:
+        - OrderCancellation
       summary: Update an order cancellation
       parameters:
         - $ref: '#/components/parameters/CancellationId'
@@ -388,7 +405,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [OrderCancellation]
+      tags:
+        - OrderCancellation
       summary: Delete an order cancellation
       parameters:
         - $ref: '#/components/parameters/CancellationId'
@@ -398,10 +416,10 @@ paths:
           description: Order cancellation deleted
         '404':
           $ref: '#/components/responses/NotFound'
-
   /fulfilment-cancellations:
     get:
-      tags: [FulfilmentCancellation]
+      tags:
+        - FulfilmentCancellation
       summary: List all fulfilment cancellations
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -415,7 +433,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/FulfilmentCancellation'
     post:
-      tags: [FulfilmentCancellation]
+      tags:
+        - FulfilmentCancellation
       summary: Create a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/SessionId'
@@ -434,10 +453,10 @@ paths:
                 $ref: '#/components/schemas/FulfilmentCancellation'
         '400':
           $ref: '#/components/responses/BadRequest'
-
   /fulfilment-cancellations/{documentId}:
     get:
-      tags: [FulfilmentCancellation]
+      tags:
+        - FulfilmentCancellation
       summary: Get a fulfilment cancellation by document ID
       parameters:
         - $ref: '#/components/parameters/DocumentId'
@@ -452,7 +471,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     put:
-      tags: [FulfilmentCancellation]
+      tags:
+        - FulfilmentCancellation
       summary: Update a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/DocumentId'
@@ -473,7 +493,8 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [FulfilmentCancellation]
+      tags:
+        - FulfilmentCancellation
       summary: Delete a fulfilment cancellation
       parameters:
         - $ref: '#/components/parameters/DocumentId'
@@ -483,7 +504,6 @@ paths:
           description: Fulfilment cancellation deleted
         '404':
           $ref: '#/components/responses/NotFound'
-
 components:
   parameters:
     ClientId:
@@ -525,8 +545,8 @@ components:
   schemas:
     ErrorResponse:
       required:
-      - error
-      - message
+        - error
+        - message
       type: object
       properties:
         error:
@@ -535,7 +555,9 @@ components:
           type: string
     ClientRequest:
       type: object
-      required: [username, password]
+      required:
+        - username
+        - password
       properties:
         username:
           type: string
@@ -554,9 +576,11 @@ components:
           format: password
     SessionRequest:
       type: object
-      required: [clientId, password]
+      required:
+        - username
+        - password
       properties:
-        clientId:
+        username:
           type: string
         password:
           type: string
@@ -581,9 +605,9 @@ components:
         changesMade:
           type: string
         buyer:
-          $ref: "#/components/schemas/Party"
+          $ref: '#/components/schemas/Party'
         seller:
-          $ref: "#/components/schemas/Party"
+          $ref: '#/components/schemas/Party'
     OrderCancellation:
       type: object
       properties:
@@ -597,7 +621,10 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, approved, rejected]
+          enum:
+            - pending
+            - approved
+            - rejected
         cancelledByUserId:
           type: string
         cancelledAt:
@@ -618,20 +645,20 @@ components:
         note:
           type: string
         shipment:
-          $ref: "#/components/schemas/Shipment"
+          $ref: '#/components/schemas/Shipment'
     DespatchAdviceCreateRequest:
       required:
-      - copyIndicator
-      - deliveryCustomerParty
-      - despatchLines
-      - despatchSupplierParty
-      - documentID
-      - documentStatusCode
-      - issueDate
-      - orderReference
-      - receiverId
-      - senderId
-      - shipment
+        - copyIndicator
+        - deliveryCustomerParty
+        - despatchLines
+        - despatchSupplierParty
+        - documentID
+        - documentStatusCode
+        - issueDate
+        - orderReference
+        - receiverId
+        - senderId
+        - shipment
       type: object
       properties:
         uuid:
@@ -654,35 +681,35 @@ components:
         documentStatusCode:
           type: string
         orderReference:
-          $ref: "#/components/schemas/OrderReference"
+          $ref: '#/components/schemas/OrderReference'
         despatchAdviceTypeCode:
           type: string
           default: delivery
         note:
           type: string
         despatchSupplierParty:
-          $ref: "#/components/schemas/DespatchSupplierParty"
+          $ref: '#/components/schemas/DespatchSupplierParty'
         deliveryCustomerParty:
-          $ref: "#/components/schemas/DeliveryCustomerParty"
+          $ref: '#/components/schemas/DeliveryCustomerParty'
         shipment:
-          $ref: "#/components/schemas/Shipment"
+          $ref: '#/components/schemas/Shipment'
         despatchLines:
           minItems: 1
           type: array
           items:
-            $ref: "#/components/schemas/DespatchLine"
+            $ref: '#/components/schemas/DespatchLine'
     ReceiptAdviceCreateRequest:
       required:
-      - copyIndicator
-      - deliveryCustomerParty
-      - despatchSupplierParty
-      - documentID
-      - documentStatusCode
-      - orderReference
-      - receiptLines
-      - receiverId
-      - senderId
-      - shipment
+        - copyIndicator
+        - deliveryCustomerParty
+        - despatchSupplierParty
+        - documentID
+        - documentStatusCode
+        - orderReference
+        - receiptLines
+        - receiverId
+        - senderId
+        - shipment
       type: object
       properties:
         uuid:
@@ -707,27 +734,27 @@ components:
         note:
           type: string
         orderReference:
-          $ref: "#/components/schemas/OrderReference"
+          $ref: '#/components/schemas/OrderReference'
         despatchDocumentReference:
-          $ref: "#/components/schemas/DocumentReference"
+          $ref: '#/components/schemas/DocumentReference'
         deliveryCustomerParty:
-          $ref: "#/components/schemas/DeliveryCustomerParty"
+          $ref: '#/components/schemas/DeliveryCustomerParty'
         despatchSupplierParty:
-          $ref: "#/components/schemas/DespatchSupplierParty"
+          $ref: '#/components/schemas/DespatchSupplierParty'
         shipment:
-          $ref: "#/components/schemas/ReceiptAdviceShipment"
+          $ref: '#/components/schemas/ReceiptAdviceShipment'
         receiptLines:
           minItems: 1
           type: array
           items:
-            $ref: "#/components/schemas/ReceiptLine"
+            $ref: '#/components/schemas/ReceiptLine'
     FulfilmentCancellationCreateRequest:
       required:
-      - documentId
-      - issueDate
-      - receiverId
-      - shipment
-      - submitterId
+        - documentId
+        - issueDate
+        - receiverId
+        - shipment
+        - submitterId
       type: object
       properties:
         receiverId:
@@ -742,19 +769,19 @@ components:
         note:
           type: string
         shipment:
-          $ref: "#/components/schemas/Shipment"
+          $ref: '#/components/schemas/Shipment'
     DespatchSupplierParty:
       required:
-      - party
+        - party
       type: object
       properties:
         customerAssignedAccountId:
           type: string
         party:
-          $ref: "#/components/schemas/Party"
+          $ref: '#/components/schemas/Party'
     DeliveryCustomerParty:
       required:
-      - party
+        - party
       type: object
       properties:
         customerAssignedAccountId:
@@ -762,25 +789,25 @@ components:
         supplierAssignedAccountId:
           type: string
         party:
-          $ref: "#/components/schemas/Party"
+          $ref: '#/components/schemas/Party'
     Party:
       required:
-      - name
-      - postalAddress
+        - name
+        - postalAddress
       type: object
       properties:
         name:
           type: string
         postalAddress:
-          $ref: "#/components/schemas/PostalAddress"
+          $ref: '#/components/schemas/PostalAddress'
         contact:
-          $ref: "#/components/schemas/Contact"
+          $ref: '#/components/schemas/Contact'
     PostalAddress:
       required:
-      - cityName
-      - countryIdentificationCode
-      - postalZone
-      - streetName
+        - cityName
+        - countryIdentificationCode
+        - postalZone
+        - streetName
       type: object
       properties:
         streetName:
@@ -815,9 +842,9 @@ components:
           type: string
     Shipment:
       required:
-      - consignmentId
-      - delivery
-      - id
+        - consignmentId
+        - delivery
+        - id
       type: object
       properties:
         id:
@@ -825,23 +852,23 @@ components:
         consignmentId:
           type: string
         delivery:
-          $ref: "#/components/schemas/Delivery"
+          $ref: '#/components/schemas/Delivery'
     Delivery:
       required:
-      - deliveryAddress
-      - requestedDeliveryPeriod
+        - deliveryAddress
+        - requestedDeliveryPeriod
       type: object
       properties:
         id:
           type: string
         deliveryAddress:
-          $ref: "#/components/schemas/PostalAddress"
+          $ref: '#/components/schemas/PostalAddress'
         requestedDeliveryPeriod:
-          $ref: "#/components/schemas/DeliveryPeriod"
+          $ref: '#/components/schemas/DeliveryPeriod'
     DeliveryPeriod:
       required:
-      - endDate
-      - startDate
+        - endDate
+        - startDate
       type: object
       properties:
         startDate:
@@ -856,9 +883,9 @@ components:
           type: string
     ReceiptAdviceShipment:
       required:
-      - consignmentId
-      - delivery
-      - id
+        - consignmentId
+        - delivery
+        - id
       type: object
       properties:
         id:
@@ -866,7 +893,7 @@ components:
         consignmentId:
           type: string
         delivery:
-          $ref: "#/components/schemas/ReceiptDelivery"
+          $ref: '#/components/schemas/ReceiptDelivery'
     ReceiptDelivery:
       type: object
       properties:
@@ -882,14 +909,14 @@ components:
         actualDeliveryTime:
           type: string
         requestedDeliveryPeriod:
-          $ref: "#/components/schemas/DeliveryPeriod"
+          $ref: '#/components/schemas/DeliveryPeriod'
     DespatchLine:
       required:
-      - deliveredQuantity
-      - deliveredQuantityUnitCode
-      - id
-      - item
-      - orderLineReference
+        - deliveredQuantity
+        - deliveredQuantityUnitCode
+        - id
+        - item
+        - orderLineReference
       type: object
       properties:
         id:
@@ -910,15 +937,15 @@ components:
         backorderReason:
           type: string
         orderLineReference:
-          $ref: "#/components/schemas/OrderLineReference"
+          $ref: '#/components/schemas/OrderLineReference'
         item:
-          $ref: "#/components/schemas/Item"
+          $ref: '#/components/schemas/Item'
     ReceiptLine:
       required:
-      - id
-      - item
-      - receivedQuantity
-      - receivedQuantityUnitCode
+        - id
+        - item
+        - receivedQuantity
+        - receivedQuantityUnitCode
       type: object
       properties:
         id:
@@ -934,11 +961,11 @@ components:
         shortQuantityUnitCode:
           type: string
         item:
-          $ref: "#/components/schemas/Item"
+          $ref: '#/components/schemas/Item'
     OrderLineReference:
       required:
-      - lineId
-      - orderReference
+        - lineId
+        - orderReference
       type: object
       properties:
         lineId:
@@ -946,10 +973,10 @@ components:
         salesOrderLineId:
           type: string
         orderReference:
-          $ref: "#/components/schemas/OrderReference"
+          $ref: '#/components/schemas/OrderReference'
     OrderReference:
       required:
-      - id
+        - id
       type: object
       properties:
         id:
@@ -963,7 +990,7 @@ components:
           format: date
     DocumentReference:
       required:
-      - id
+        - id
       type: object
       properties:
         id:
@@ -975,8 +1002,8 @@ components:
           format: date
     Item:
       required:
-      - description
-      - name
+        - description
+        - name
       type: object
       properties:
         description:
@@ -984,14 +1011,14 @@ components:
         name:
           type: string
         buyersItemIdentification:
-          $ref: "#/components/schemas/ItemIdentification"
+          $ref: '#/components/schemas/ItemIdentification'
         sellersItemIdentification:
-          $ref: "#/components/schemas/ItemIdentification"
+          $ref: '#/components/schemas/ItemIdentification'
         itemInstance:
-          $ref: "#/components/schemas/ItemInstance"
+          $ref: '#/components/schemas/ItemInstance'
     ItemIdentification:
       required:
-      - id
+        - id
       type: object
       properties:
         id:
@@ -1000,7 +1027,7 @@ components:
       type: object
       properties:
         lotIdentification:
-          $ref: "#/components/schemas/LotIdentification"
+          $ref: '#/components/schemas/LotIdentification'
     LotIdentification:
       type: object
       properties:
@@ -1017,9 +1044,9 @@ components:
         status:
           type: string
           enum:
-          - DESPATCHED
-          - RECEIVED
-          - FULFILMENT_CANCELLED
+            - DESPATCHED
+            - RECEIVED
+            - FULFILMENT_CANCELLED
         issueDate:
           type: string
           format: date
@@ -1029,31 +1056,31 @@ components:
           type: string
     DespatchAdvice:
       allOf:
-      - $ref: "#/components/schemas/DespatchAdviceCreateRequest"
-      - required:
-        - status
-        - uuid
-        type: object
-        properties:
-          uuid:
-            type: string
-            format: uuid
-          status:
-            type: string
-            enum:
-            - DESPATCHED
-            - RECEIVED
-            - FULFILMENT_CANCELLED
+        - $ref: '#/components/schemas/DespatchAdviceCreateRequest'
+        - type: object
+          required:
+            - status
+            - uuid
+          properties:
+            uuid:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum:
+                - DESPATCHED
+                - RECEIVED
+                - FULFILMENT_CANCELLED
     ReceiptAdvice:
       allOf:
-      - $ref: "#/components/schemas/ReceiptAdviceCreateRequest"
-      - required:
-        - uuid
-        type: object
-        properties:
-          uuid:
-            type: string
-            format: uuid
+        - $ref: '#/components/schemas/ReceiptAdviceCreateRequest'
+        - type: object
+          required:
+            - uuid
+          properties:
+            uuid:
+              type: string
+              format: uuid
     inline_response_200:
       type: object
       properties:
@@ -1062,23 +1089,23 @@ components:
         status:
           type: string
           enum:
-          - DESPATCHED
+            - DESPATCHED
     inline_response_200_1:
       type: object
       properties:
         status:
           type: string
           enum:
-          - DESPATCHED
-          - RECEIVED
-          - FULFILMENT_CANCELLED
+            - DESPATCHED
+            - RECEIVED
+            - FULFILMENT_CANCELLED
     inline_response_200_2:
       type: object
       properties:
         status:
           type: string
           enum:
-          - FULFILMENT_CANCELLED
+            - FULFILMENT_CANCELLED
     inline_response_200_3:
       type: object
       properties:
@@ -1090,46 +1117,46 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     ReferencedOrderNotFound:
       description: Referenced order not found
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     InternalServerError:
       description: Internal Server Error
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     BadRequest:
       description: Bad Request
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     Unauthorized:
       description: Authentication failed
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     DespatchAdviceNotFound:
       description: Despatch Advice not found
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     ReceiptAdviceNotFound:
       description: Receipt Advice not found
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
     NotFound:
       description: Resource not found
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: '#/components/schemas/ErrorResponse'
