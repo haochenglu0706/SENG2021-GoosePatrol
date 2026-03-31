@@ -90,6 +90,16 @@ export async function route(event: any) {
     return health.getHealth(event);
   }
 
+  // GET /receipt-advices/{receiptAdviceId}
+  const receiptAdviceGetMatch = path.match(/^\/receipt-advices\/([^/]+)$/);
+  if (method === "GET" && receiptAdviceGetMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      receiptAdviceId: receiptAdviceGetMatch[1],
+    };
+    return receipt.getReceiptAdvice(event);
+  }
+
   // DOCS ROUTE — redirect to Swagger UI
   // Use getDocsInline(event) here if you want the inline Swagger UI instead.
   if (method === "GET" && (path === "/docs" || path === "/docs/")) {
