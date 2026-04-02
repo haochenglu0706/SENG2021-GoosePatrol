@@ -14,6 +14,10 @@ function isPasswordWeak(password: string): boolean {
   return false;
 }
 
+function isEmailInvalid(email: string): boolean {
+  return !email.includes("@") || email.trim().length < 3;
+}
+
 function hashPassword(password: string): string {
   const salt = randomBytes(16);
   const key = scryptSync(password, salt, 64);
@@ -55,7 +59,7 @@ export async function verifySession(
 }
 
 export async function login(event: any) {
-  let body: { username?: string; password?: string };
+  let body: { username?: string; password?: string; email?: string };
   try {
     body = typeof event.body === "string" ? JSON.parse(event.body) : event.body ?? {};
   } catch {
@@ -69,7 +73,7 @@ export async function login(event: any) {
     };
   }
 
-  const { username, password } = body;
+  const { username, password, email } = body;
   if (typeof username !== "string" || typeof password !== "string") {
     return {
       statusCode: 401,
@@ -91,6 +95,19 @@ export async function login(event: any) {
         message: "username and password are required",
       }),
     };
+  }
+  // Validate email if provided
+  if (email !== undefined) {
+    if (typeof email !== "string" || isEmailInvalid(email)) {
+      return {
+        statusCode: 400,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          error: "BadRequest",
+          message: "Invalid email address — must contain @",
+        }),
+      };
+    }
   }
 
   const queryResult = await dynamo.send(
@@ -167,7 +184,7 @@ export async function login(event: any) {
 }
 
 export async function register(event: any) {
-  let body: { username?: string; password?: string };
+  let body: { username?: string; password?: string; email?: string };
   try {
     body = typeof event.body === "string" ? JSON.parse(event.body) : event.body ?? {};
   } catch {
@@ -181,7 +198,7 @@ export async function register(event: any) {
     };
   }
 
-  const { username, password } = body;
+  const { username, password, email } = body;
   if (typeof username !== "string" || typeof password !== "string") {
     return {
       statusCode: 400,
@@ -217,6 +234,20 @@ export async function register(event: any) {
     };
   }
 
+    // Validate email if provided
+  if (email !== undefined) {
+    if (typeof email !== "string" || isEmailInvalid(email)) {
+      return {
+        statusCode: 400,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          error: "BadRequest",
+          message: "Invalid email address — must contain @",
+        }),
+      };
+    }
+  }
+
   const queryResult = await dynamo.send(
     new QueryCommand({
       TableName: CLIENTS_TABLE,
@@ -247,6 +278,7 @@ export async function register(event: any) {
         clientId: clientId,
         username: trimmedUsername,
         passwordHash: passwordHash,
+        ...(email && { email: email.trim() }),
       }),
     })
   );
@@ -257,6 +289,7 @@ export async function register(event: any) {
     body: JSON.stringify({
       clientId: clientId,
       username: trimmedUsername,
+      ...(email && { email: email.trim() }),
     }),
   };
 }
