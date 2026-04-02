@@ -184,7 +184,7 @@ export async function login(event: any) {
 }
 
 export async function register(event: any) {
-  let body: { username?: string; password?: string; email?: string };
+  let body: { username?: string; password?: string; email?: string; };
   try {
     body = typeof event.body === "string" ? JSON.parse(event.body) : event.body ?? {};
   } catch {
@@ -199,16 +199,16 @@ export async function register(event: any) {
   }
 
   const { username, password, email } = body;
-  if (typeof username !== "string" || typeof password !== "string") {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        error: "BadRequest",
-        message: "username and password are required",
-      }),
-    };
-  }
+  if (typeof username !== "string" || typeof password !== "string" || typeof email !== "string") {
+  return {
+    statusCode: 400,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({
+      error: "BadRequest",
+      message: "username, email and password are required",
+    }),
+  };
+}
 
   const trimmedUsername = username.trim();
   if (!trimmedUsername) {
@@ -234,19 +234,16 @@ export async function register(event: any) {
     };
   }
 
-    // Validate email if provided
-  if (email !== undefined) {
-    if (typeof email !== "string" || isEmailInvalid(email)) {
-      return {
-        statusCode: 400,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-          error: "BadRequest",
-          message: "Invalid email address — must contain @",
-        }),
-      };
-    }
-  }
+  if (isEmailInvalid(email)) {
+  return {
+    statusCode: 400,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({
+      error: "BadRequest",
+      message: "Invalid email address — must contain @",
+    }),
+  };
+}
 
   const queryResult = await dynamo.send(
     new QueryCommand({
@@ -278,7 +275,7 @@ export async function register(event: any) {
         clientId: clientId,
         username: trimmedUsername,
         passwordHash: passwordHash,
-        ...(email && { email: email.trim() }),
+        email: email.trim(),
       }),
     })
   );
@@ -289,7 +286,7 @@ export async function register(event: any) {
     body: JSON.stringify({
       clientId: clientId,
       username: trimmedUsername,
-      ...(email && { email: email.trim() }),
+      email: email.trim(),
     }),
   };
 }
