@@ -49,8 +49,10 @@ export default function App() {
 
   const [regUsername, setRegUsername] = useState("");
   const [regPassword, setRegPassword] = useState("");
+  const [regEmail, setRegEmail] = useState("");
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [despatch, setDespatch] = useState<DespatchState>(initialDespatch);
 
   // Get Despatch
@@ -87,18 +89,34 @@ export default function App() {
   };
 
   const handleRegister = async () => {
+    if (!regEmail.includes("@")) {
+      setError("Invalid email address — must contain @");
+      return;
+    }
     await call(`${API_BASE}/clients`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: regUsername, password: regPassword }),
+      body: JSON.stringify({ 
+        username: regUsername, 
+        password: regPassword,
+        email: regEmail,
+      }),
     });
   };
 
   const handleLogin = async () => {
+    if (!loginEmail.includes("@")) {
+      setError("Invalid email address — must contain @");
+      return;
+    }
     const data = await call(`${API_BASE}/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: loginUsername, password: loginPassword }),
+      body: JSON.stringify({ 
+        username: loginUsername, 
+        password: loginPassword,
+        email: loginEmail,
+      }),
     });
     if (data && (data as { sessionId?: string }).sessionId) {
       setSessionId((data as { sessionId: string }).sessionId);
@@ -300,9 +318,10 @@ export default function App() {
               <h2 style={{ fontFamily: "'Syne', sans-serif", color: "#f0f6fc", fontSize: "16px", fontWeight: 700, margin: "0 0 4px" }}>Register a client</h2>
               <p style={{ color: "#8b949e", fontSize: "12px", margin: "0 0 20px" }}>Create a new account with a username and password.</p>
               <div style={fieldStyle}><label style={labelStyle}>Username</label><input style={inputStyle} placeholder="your-username" value={regUsername} onChange={e => setRegUsername(e.target.value)} /></div>
+              <div style={fieldStyle}><label style={labelStyle}>Email</label><input style={inputStyle} type="email" placeholder="jane@acme.com" value={regEmail} onChange={e => setRegEmail(e.target.value)} /></div>
               <div style={fieldStyle}><label style={labelStyle}>Password</label><input style={inputStyle} type="password" placeholder="YourPassword1" value={regPassword} onChange={e => setRegPassword(e.target.value)} /></div>
-              <p style={{ fontSize: "11px", color: "#6e7681", margin: "0 0 16px" }}>Min 8 characters · must contain a letter and a digit</p>
-              <button onClick={handleRegister} disabled={loading || !regUsername || !regPassword} style={btnStyle(loading || !regUsername || !regPassword)}>
+              <p style={{ fontSize: "11px", color: "#6e7681", margin: "0 0 16px" }}>Min 8 characters · must contain a letter and a digit</p>  
+              <button onClick={handleRegister} disabled={loading || !regUsername || !regPassword || !regEmail} style={btnStyle(loading || !regUsername || !regPassword || !regEmail)}>
                 {loading ? "Registering..." : "Register →"}
               </button>
             </div>
@@ -314,6 +333,7 @@ export default function App() {
               <h2 style={{ fontFamily: "'Syne', sans-serif", color: "#f0f6fc", fontSize: "16px", fontWeight: 700, margin: "0 0 4px" }}>Create a session</h2>
               <p style={{ color: "#8b949e", fontSize: "12px", margin: "0 0 20px" }}>Login to get a sessionId used for all subsequent requests.</p>
               <div style={fieldStyle}><label style={labelStyle}>Username</label><input style={inputStyle} placeholder="your-username" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} /></div>
+              <div style={fieldStyle}><label style={labelStyle}>Email</label><input style={inputStyle} type="email" placeholder="jane@acme.com" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} /></div>
               <div style={fieldStyle}><label style={labelStyle}>Password</label><input style={inputStyle} type="password" placeholder="YourPassword1" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} /></div>
               {sessionId && (
                 <div style={{ background: "#0f2a1a", border: "1px solid #1a4731", borderRadius: "6px", padding: "10px 14px", marginBottom: "14px" }}>
@@ -321,7 +341,7 @@ export default function App() {
                   <p style={{ fontSize: "11px", color: "#8b949e", margin: 0, wordBreak: "break-all" }}>{sessionId}</p>
                 </div>
               )}
-              <button onClick={handleLogin} disabled={loading || !loginUsername || !loginPassword} style={btnStyle(loading || !loginUsername || !loginPassword)}>
+              <button onClick={handleLogin} disabled={loading || !loginUsername || !loginPassword || !loginEmail} style={btnStyle(loading || !loginUsername || !loginPassword || !loginEmail)}>
                 {loading ? "Logging in..." : "Login →"}
               </button>
             </div>
