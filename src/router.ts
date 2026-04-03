@@ -34,6 +34,16 @@ export async function route(event: any) {
     return auth.register(event);
   }
 
+  // DELETE /sessions/{sessionId} — logout
+  const sessionDeleteMatch = path.match(/^\/sessions\/([^/]+)$/);
+  if (method === "DELETE" && sessionDeleteMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      sessionId: sessionDeleteMatch[1],
+    };
+    return auth.logout(event);
+  }
+
   // DESPATCH ROUTES
 
   if (method === "GET" && path === "/despatch-advices") {
@@ -42,6 +52,15 @@ export async function route(event: any) {
 
   if (method === "POST" && path === "/despatch-advices") {
     return despatch.createDespatchAdvice(event);
+  }
+
+  // POST /despatch-advices/{despatchId}/fulfilment-cancellation
+  // *** Must be matched BEFORE the broad startsWith block below ***
+  const fulfilmentCancelMatch = path.match(
+    /^\/despatch-advices\/([^/]+)\/fulfilment-cancellation$/
+  );
+  if (method === "POST" && fulfilmentCancelMatch) {
+    return despatch.cancelFulfilment(event, fulfilmentCancelMatch[1]);
   }
 
   // Despatch advice item routes (/despatch-advices/{documentId})
