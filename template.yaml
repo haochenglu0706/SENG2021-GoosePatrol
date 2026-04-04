@@ -78,6 +78,11 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}
             Method: get
+        GetDespatchAdviceUbl:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}/ubl
+            Method: get
         UpdateDespatchAdvice:
           Type: Api
           Properties:
@@ -98,6 +103,11 @@ Resources:
           Type: Api
           Properties:
             Path: /receipt-advices/{receiptAdviceId}
+            Method: get
+        GetReceiptAdviceUbl:
+          Type: Api
+          Properties:
+            Path: /receipt-advices/{receiptAdviceId}/ubl
             Method: get
         CreateReceiptAdvice:
           Type: Api
