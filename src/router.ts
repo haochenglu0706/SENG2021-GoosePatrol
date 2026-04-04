@@ -62,6 +62,11 @@ export async function route(event: any) {
     return despatch.cancelFulfilment(event, fulfilmentCancelMatch[1]);
   }
 
+  const despatchUblMatch = path.match(/^\/despatch-advices\/([^/]+)\/ubl$/);
+  if (method === "GET" && despatchUblMatch) {
+    return despatch.exportDespatchAdviceAsUblXml(despatchUblMatch[1]);
+  }
+
   // Despatch advice item routes (/despatch-advices/{documentId})
 
   if (path.startsWith("/despatch-advices/")) {
@@ -106,6 +111,11 @@ export async function route(event: any) {
   }
   if (method === "GET" && (path === "/health" || path === "/health/")) {
     return health.getHealth(event);
+  }
+
+  const receiptUblMatch = path.match(/^\/receipt-advices\/([^/]+)\/ubl$/);
+  if (method === "GET" && receiptUblMatch) {
+    return receipt.exportReceiptAdviceAsUblXml(receiptUblMatch[1]);
   }
 
   // GET /receipt-advices/{receiptAdviceId}

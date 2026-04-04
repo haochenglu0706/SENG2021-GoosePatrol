@@ -121,6 +121,14 @@ function badRequest(message: string) {
   };
 }
 
+function notFound(message: string) {
+  return {
+    statusCode: 404,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({ error: "NotFound", message }),
+  };
+}
+
 function internalError(err: unknown) {
   const message = err instanceof Error ? err.message : "Unexpected error";
   return {
@@ -598,6 +606,308 @@ export async function getReceiptAdvice(event: any) {
     headers: CORS_HEADERS,
     body: JSON.stringify(receiptItem),
   };
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// ////////////////////// UBL 2.1 ReceiptAdvice XML export /////////////////////
+/// /////////////////////////////////////////////////////////////////////////////
+
+interface ReceiptAdviceRecord {
+  receiptAdviceId: string;
+  despatchAdviceId?: string;
+  documentId: string;
+  copyIndicator?: boolean;
+  documentStatusCode?: string;
+  issueDate?: string;
+  uuid?: string;
+  note?: string;
+  orderReference?: OrderReference;
+  despatchDocumentReference?: DocumentReference;
+  despatchSupplierParty?: DespatchSupplierParty;
+  deliveryCustomerParty?: DeliveryCustomerParty;
+  shipment?: ReceiptAdviceShipment;
+  receiptLines?: ReceiptLine[];
+}
+
+function escapeXml(text: string | number | boolean | undefined | null): string {
+  if (text === undefined || text === null) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function cbc(tag: string, value: string | number | boolean): string {
+  const body =
+    typeof value === "boolean" ? (value ? "true" : "false") : escapeXml(value);
+  return `<cbc:${tag}>${body}</cbc:${tag}>`;
+}
+
+function addressFieldsXml(addr: PostalAddress): string {
+  let s = "";
+  if (addr.streetName) s += cbc("StreetName", addr.streetName);
+  if (addr.buildingName) s += cbc("BuildingName", addr.buildingName);
+  if (addr.buildingNumber) s += cbc("BuildingNumber", addr.buildingNumber);
+  if (addr.cityName) s += cbc("CityName", addr.cityName);
+  if (addr.postalZone) s += cbc("PostalZone", addr.postalZone);
+  if (addr.countrySubentity) s += cbc("CountrySubentity", addr.countrySubentity);
+  if (addr.addressLine) {
+    s += `<cac:AddressLine><cbc:Line>${escapeXml(addr.addressLine)}</cbc:Line></cac:AddressLine>`;
+  }
+  if (addr.countryIdentificationCode) {
+    s += `<cac:Country><cbc:IdentificationCode>${escapeXml(
+      addr.countryIdentificationCode
+    )}</cbc:IdentificationCode></cac:Country>`;
+  }
+  return s;
+}
+
+function wrappedPostalAddress(addr: PostalAddress | undefined): string {
+  if (!addr) return "";
+  const inner = addressFieldsXml(addr);
+  if (!inner) return "";
+  return `<cac:PostalAddress>${inner}</cac:PostalAddress>`;
+}
+
+function contactXml(c: Contact | undefined): string {
+  if (!c) return "";
+  let s = "<cac:Contact>";
+  if (c.name) s += cbc("Name", c.name);
+  if (c.telephone) s += cbc("Telephone", c.telephone);
+  if (c.telefax) s += cbc("Telefax", c.telefax);
+  if (c.email) s += cbc("ElectronicMail", c.email);
+  s += "</cac:Contact>";
+  if (s === "<cac:Contact></cac:Contact>") return "";
+  return s;
+}
+
+function partyXml(party: Party | undefined): string {
+  if (!party) return "";
+  let s = "<cac:Party>";
+  if (party.name) {
+    s += `<cac:PartyName><cbc:Name>${escapeXml(party.name)}</cbc:Name></cac:PartyName>`;
+  }
+  s += wrappedPostalAddress(party.postalAddress);
+  s += contactXml(party.contact);
+  s += "</cac:Party>";
+  if (s === "<cac:Party></cac:Party>") return "";
+  return s;
+}
+
+function orderReferenceXml(oref: OrderReference | undefined): string {
+  if (!oref) return "";
+  let s = "<cac:OrderReference>";
+  if (oref.id) s += cbc("ID", oref.id);
+  if (oref.salesOrderId) s += cbc("SalesOrderID", oref.salesOrderId);
+  if (oref.uuid) s += cbc("UUID", oref.uuid);
+  if (oref.issueDate) s += cbc("IssueDate", oref.issueDate);
+  s += "</cac:OrderReference>";
+  if (s === "<cac:OrderReference></cac:OrderReference>") return "";
+  return s;
+}
+
+function despatchDocumentReferenceXml(dr: DocumentReference | undefined): string {
+  if (!dr) return "";
+  let s = "<cac:DespatchDocumentReference>";
+  if (dr.id) s += cbc("ID", dr.id);
+  if (dr.uuid) s += cbc("UUID", dr.uuid);
+  if (dr.issueDate) s += cbc("IssueDate", dr.issueDate);
+  s += "</cac:DespatchDocumentReference>";
+  if (s === "<cac:DespatchDocumentReference></cac:DespatchDocumentReference>") return "";
+  return s;
+}
+
+function deliveryPeriodXml(p: DeliveryPeriod | undefined): string {
+  if (!p) return "";
+  let s = "<cac:RequestedDeliveryPeriod>";
+  if (p.startDate) s += cbc("StartDate", p.startDate);
+  if (p.startTime) s += cbc("StartTime", p.startTime);
+  if (p.endDate) s += cbc("EndDate", p.endDate);
+  if (p.endTime) s += cbc("EndTime", p.endTime);
+  s += "</cac:RequestedDeliveryPeriod>";
+  if (s === "<cac:RequestedDeliveryPeriod></cac:RequestedDeliveryPeriod>") return "";
+  return s;
+}
+
+function receiptDeliveryXml(d: ReceiptDelivery | undefined): string {
+  if (!d) return "";
+  let s = "<cac:Delivery>";
+  if (d.id) s += cbc("ID", d.id);
+  if (d.quantity != null && d.quantityUnitCode) {
+    s += `<cbc:Quantity unitCode="${escapeXml(d.quantityUnitCode)}">${escapeXml(
+      d.quantity
+    )}</cbc:Quantity>`;
+  }
+  if (d.actualDeliveryDate) s += cbc("ActualDeliveryDate", d.actualDeliveryDate);
+  if (d.actualDeliveryTime) s += cbc("ActualDeliveryTime", d.actualDeliveryTime);
+  s += deliveryPeriodXml(d.requestedDeliveryPeriod);
+  s += "</cac:Delivery>";
+  if (s === "<cac:Delivery></cac:Delivery>") return "";
+  return s;
+}
+
+function receiptShipmentXml(sh: ReceiptAdviceShipment | undefined): string {
+  if (!sh) return "";
+  let s = "<cac:Shipment>";
+  s += cbc("ID", sh.id != null && String(sh.id) !== "" ? String(sh.id) : "1");
+  s += "<cac:Consignment>";
+  s += cbc(
+    "ID",
+    sh.consignmentId != null && String(sh.consignmentId) !== ""
+      ? String(sh.consignmentId)
+      : "1"
+  );
+  s += "</cac:Consignment>";
+  s += receiptDeliveryXml(sh.delivery);
+  s += "</cac:Shipment>";
+  return s;
+}
+
+function itemXml(item: Item | undefined): string {
+  if (!item) return "";
+  let s = "<cac:Item>";
+  if (item.description) s += cbc("Description", item.description);
+  if (item.name) s += cbc("Name", item.name);
+  if (item.buyersItemIdentification?.id) {
+    s += `<cac:BuyersItemIdentification>${cbc("ID", item.buyersItemIdentification.id)}</cac:BuyersItemIdentification>`;
+  }
+  if (item.sellersItemIdentification?.id) {
+    s += `<cac:SellersItemIdentification>${cbc("ID", item.sellersItemIdentification.id)}</cac:SellersItemIdentification>`;
+  }
+  if (item.itemInstance?.lotIdentification) {
+    const lot = item.itemInstance.lotIdentification;
+    s += "<cac:ItemInstance><cac:LotIdentification>";
+    if (lot.lotNumberId) s += cbc("LotNumberID", lot.lotNumberId);
+    if (lot.expiryDate) s += cbc("ExpiryDate", lot.expiryDate);
+    s += "</cac:LotIdentification></cac:ItemInstance>";
+  }
+  s += "</cac:Item>";
+  if (s === "<cac:Item></cac:Item>") return "";
+  return s;
+}
+
+function receiptLineXml(line: ReceiptLine, fallbackId: string): string {
+  const id = line.id != null && String(line.id) !== "" ? String(line.id) : fallbackId;
+  let s = "<cac:ReceiptLine>";
+  s += cbc("ID", id);
+  if (line.note) s += cbc("Note", line.note);
+  if (line.receivedQuantity != null) {
+    const u = line.receivedQuantityUnitCode ?? "C62";
+    s += `<cbc:ReceivedQuantity unitCode="${escapeXml(u)}">${escapeXml(
+      line.receivedQuantity
+    )}</cbc:ReceivedQuantity>`;
+  }
+  if (line.shortQuantity != null) {
+    const u = line.shortQuantityUnitCode ?? "C62";
+    s += `<cbc:ShortQuantity unitCode="${escapeXml(u)}">${escapeXml(
+      line.shortQuantity
+    )}</cbc:ShortQuantity>`;
+  }
+  s += itemXml(line.item);
+  s += "</cac:ReceiptLine>";
+  return s;
+}
+
+function buildReceiptUblXml(doc: ReceiptAdviceRecord): string {
+  const header =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<ReceiptAdvice xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" ' +
+    'xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" ' +
+    'xmlns="urn:oasis:names:specification:ubl:schema:xsd:ReceiptAdvice-2">';
+
+  const ublUuid = (doc.uuid ?? doc.receiptAdviceId).toUpperCase();
+
+  let body = "";
+  body += cbc("UBLVersionID", "2.1");
+  body += cbc(
+    "CustomizationID",
+    "urn:oasis:names:specification:ubl:xpath:ReceiptAdvice-2"
+  );
+  body += cbc(
+    "ProfileID",
+    "bpid:urn:oasis:names:draft:bpss:ubl-2-sbs-receipt-advice-notification-draft"
+  );
+  body += cbc("ID", doc.documentId);
+  body += cbc("CopyIndicator", doc.copyIndicator === true);
+  body += cbc("UUID", ublUuid);
+  if (doc.issueDate) body += cbc("IssueDate", doc.issueDate);
+  if (doc.documentStatusCode) body += cbc("DocumentStatusCode", doc.documentStatusCode);
+  if (doc.note) body += cbc("Note", doc.note);
+
+  body += orderReferenceXml(doc.orderReference);
+  const despatchRef: DocumentReference | undefined =
+    doc.despatchDocumentReference ??
+    (doc.despatchAdviceId ? { uuid: doc.despatchAdviceId } : undefined);
+  body += despatchDocumentReferenceXml(despatchRef);
+
+  if (doc.despatchSupplierParty) {
+    const dsp = doc.despatchSupplierParty;
+    body += "<cac:DespatchSupplierParty>";
+    if (dsp.customerAssignedAccountId) {
+      body += cbc("CustomerAssignedAccountID", dsp.customerAssignedAccountId);
+    }
+    body += partyXml(dsp.party);
+    body += "</cac:DespatchSupplierParty>";
+  }
+
+  if (doc.deliveryCustomerParty) {
+    const dcp = doc.deliveryCustomerParty;
+    body += "<cac:DeliveryCustomerParty>";
+    if (dcp.customerAssignedAccountId) {
+      body += cbc("CustomerAssignedAccountID", dcp.customerAssignedAccountId);
+    }
+    if (dcp.supplierAssignedAccountId) {
+      body += cbc("SupplierAssignedAccountID", dcp.supplierAssignedAccountId);
+    }
+    body += partyXml(dcp.party);
+    body += "</cac:DeliveryCustomerParty>";
+  }
+
+  body += receiptShipmentXml(doc.shipment);
+
+  const lines = doc.receiptLines ?? [];
+  lines.forEach((line, i) => {
+    body += receiptLineXml(line, String(i + 1));
+  });
+
+  return `${header}\n${body}\n</ReceiptAdvice>`;
+}
+
+/**
+ * GET /receipt-advices/{receiptAdviceId}/ubl
+ * Serialises a stored receipt advice to UBL ReceiptAdvice XML (2.1-style metadata and OASIS 2.x namespaces).
+ * Unlike GET /receipt-advices/{id}, this succeeds even when documentStatusCode is FULLY_RECEIVED.
+ */
+export async function exportReceiptAdviceAsUblXml(receiptAdviceId: string) {
+  if (!receiptAdviceId?.trim()) {
+    return badRequest("receiptAdviceId is required");
+  }
+  try {
+    const result = await dynamo.send(
+      new GetItemCommand({
+        TableName: RECEIPT_ADVICES_TABLE,
+        Key: marshall({ receiptAdviceId }),
+      })
+    );
+    if (!result.Item) {
+      return notFound(`Receipt advice not found: ${receiptAdviceId}`);
+    }
+    const doc = unmarshall(result.Item) as ReceiptAdviceRecord;
+    const xml = buildReceiptUblXml(doc);
+    return {
+      statusCode: 200,
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type": "application/xml; charset=utf-8",
+      },
+      body: xml,
+    };
+  } catch (err) {
+    console.error("DynamoDB GetItem (ReceiptAdvice UBL export) error:", err);
+    return internalError(err);
+  }
 }
 
 // ---------------------------------------------------------------------------
