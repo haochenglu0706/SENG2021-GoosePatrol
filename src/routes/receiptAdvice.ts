@@ -1,45 +1,566 @@
-import {
-  DynamoDBClient,
-  GetItemCommand,
-  PutItemCommand,
-  UpdateItemCommand,
-} from "@aws-sdk/client-dynamodb";
+import { GetItemCommand, PutItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { CORS_HEADERS } from "../cors.js";
+import { dynamo, DESPATCH_ADVICES_TABLE, RECEIPT_ADVICES_TABLE } from "../db.js";
 
-const dynamo = new DynamoDBClient({ region: process.env.AWS_REGION ?? "ap-southeast-2" });
+/// /////////////////////////////////////////////////////////////////////////////
+/// Types (aligned with swagger.yaml ReceiptAdviceCreateRequest + nested schemas)
+/// /////////////////////////////////////////////////////////////////////////////
 
+interface PostalAddress {
+  streetName?: string;
+  buildingName?: string;
+  buildingNumber?: string;
+  cityName?: string;
+  postalZone?: string;
+  countrySubentity?: string;
+  addressLine?: string;
+  countryIdentificationCode?: string;
+}
 
-const DESPATCH_TABLE = process.env.DESPATCH_TABLE_NAME ?? "DespatchAdvices";
-const RECEIPT_TABLE  = process.env.RECEIPT_TABLE_NAME  ?? "ReceiptAdvices";
+interface Contact {
+  name?: string;
+  telephone?: string;
+  telefax?: string;
+  email?: string;
+}
+
+interface Party {
+  name?: string;
+  postalAddress?: PostalAddress;
+  contact?: Contact;
+}
+
+interface DespatchSupplierParty {
+  customerAssignedAccountId?: string;
+  party?: Party;
+}
+
+interface DeliveryCustomerParty {
+  customerAssignedAccountId?: string;
+  supplierAssignedAccountId?: string;
+  party?: Party;
+}
+
+interface DeliveryPeriod {
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+}
+
+interface ReceiptDelivery {
+  id?: string;
+  quantity?: number;
+  quantityUnitCode?: string;
+  actualDeliveryDate?: string;
+  actualDeliveryTime?: string;
+  requestedDeliveryPeriod?: DeliveryPeriod;
+}
+
+interface ReceiptAdviceShipment {
+  id?: string;
+  consignmentId?: string;
+  delivery?: ReceiptDelivery;
+}
+
+interface ItemIdentification {
+  id?: string;
+}
+
+interface LotIdentification {
+  lotNumberId?: string;
+  expiryDate?: string;
+}
+
+interface ItemInstance {
+  lotIdentification?: LotIdentification;
+}
+
+interface Item {
+  description?: string;
+  name?: string;
+  buyersItemIdentification?: ItemIdentification;
+  sellersItemIdentification?: ItemIdentification;
+  itemInstance?: ItemInstance;
+}
+
+interface OrderReference {
+  id?: string;
+  salesOrderId?: string;
+  uuid?: string;
+  issueDate?: string;
+}
+
+interface DocumentReference {
+  id?: string;
+  uuid?: string;
+  issueDate?: string;
+}
+
+interface ReceiptLine {
+  id?: string;
+  note?: string;
+  receivedQuantity?: number;
+  receivedQuantityUnitCode?: string;
+  shortQuantity?: number;
+  shortQuantityUnitCode?: string;
+  item?: Item;
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// Response helpers
+/// /////////////////////////////////////////////////////////////////////////////
+
+function badRequest(message: string) {
+  return {
+    statusCode: 400,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({ error: "BadRequest", message }),
+  };
+}
+
+function internalError(err: unknown) {
+  const message = err instanceof Error ? err.message : "Unexpected error";
+  return {
+    statusCode: 500,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({ error: "InternalServerError", message }),
+  };
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// Body parsing (mirror despatchAdvice.ts)
+/// /////////////////////////////////////////////////////////////////////////////
+
+/** Swagger uses `documentID`; we store `documentId` in DynamoDB. */
+function normalizeReceiptAdviceBody(body: Record<string, unknown>): void {
+  if (body.documentID != null && body.documentId == null) {
+    body.documentId = body.documentID;
+  }
+}
+
+function parseBody(event: any): { body: Record<string, unknown>; error?: string } {
+  if (event == null) {
+    return { body: {} };
+  }
+
+  if (typeof event.body === "string") {
+    try {
+      const parsed = JSON.parse(event.body) as Record<string, unknown>;
+      normalizeReceiptAdviceBody(parsed);
+      return { body: parsed };
+    } catch {
+      return { body: {}, error: "Invalid JSON body" };
+    }
+  }
+
+  if (event.body !== undefined && typeof event.body === "object" && event.body !== null) {
+    const b = event.body as Record<string, unknown>;
+    normalizeReceiptAdviceBody(b);
+    return { body: b };
+  }
+
+  if (typeof event === "object") {
+    const b = event as Record<string, unknown>;
+    normalizeReceiptAdviceBody(b);
+    return { body: b };
+  }
+
+  return { body: {} };
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// Validation (swagger ReceiptAdviceCreateRequest required + nested required)
+/// /////////////////////////////////////////////////////////////////////////////
+
+function nonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+function validatePostalAddress(addr: unknown, path: string): string | null {
+  if (!addr || typeof addr !== "object") return `${path} is required`;
+  const a = addr as Record<string, unknown>;
+  if (!nonEmptyString(a.streetName)) return `${path}.streetName is required`;
+  if (!nonEmptyString(a.cityName)) return `${path}.cityName is required`;
+  if (!nonEmptyString(a.postalZone)) return `${path}.postalZone is required`;
+  if (!nonEmptyString(a.countryIdentificationCode)) {
+    return `${path}.countryIdentificationCode is required`;
+  }
+  if (String(a.countryIdentificationCode).length !== 2) {
+    return `${path}.countryIdentificationCode must be exactly 2 characters`;
+  }
+  return null;
+}
+
+function validateParty(party: unknown, path: string): string | null {
+  if (!party || typeof party !== "object") return `${path} is required`;
+  const p = party as Record<string, unknown>;
+  if (!nonEmptyString(p.name)) return `${path}.name is required`;
+  return validatePostalAddress(p.postalAddress, `${path}.postalAddress`);
+}
+
+function validateDeliveryPeriod(dp: unknown, path: string): string | null {
+  if (!dp || typeof dp !== "object") return `${path} is required`;
+  const d = dp as Record<string, unknown>;
+  if (!nonEmptyString(d.startDate)) return `${path}.startDate is required`;
+  if (!nonEmptyString(d.endDate)) return `${path}.endDate is required`;
+  return null;
+}
+
+function validateReceiptDelivery(d: unknown, path: string): string | null {
+  if (!d || typeof d !== "object") return `${path} is required`;
+  const x = d as Record<string, unknown>;
+  if (x.requestedDeliveryPeriod !== undefined && x.requestedDeliveryPeriod !== null) {
+    return validateDeliveryPeriod(x.requestedDeliveryPeriod, `${path}.requestedDeliveryPeriod`);
+  }
+  return null;
+}
+
+function validateReceiptShipment(ship: unknown, path: string): string | null {
+  if (!ship || typeof ship !== "object") return `${path} is required`;
+  const s = ship as Record<string, unknown>;
+  if (!nonEmptyString(s.id)) return `${path}.id is required`;
+  if (!nonEmptyString(s.consignmentId)) return `${path}.consignmentId is required`;
+  return validateReceiptDelivery(s.delivery, `${path}.delivery`);
+}
+
+function validateOrderReference(or: unknown, path: string): string | null {
+  if (!or || typeof or !== "object") return `${path} is required`;
+  const o = or as Record<string, unknown>;
+  if (!nonEmptyString(o.id)) return `${path}.id is required`;
+  return null;
+}
+
+function validateDocumentReference(dr: unknown, path: string): string | null {
+  if (!dr || typeof dr !== "object") return `${path} must be an object`;
+  const d = dr as Record<string, unknown>;
+  if (!nonEmptyString(d.id)) return `${path}.id is required`;
+  return null;
+}
+
+function validateItem(item: unknown, path: string): string | null {
+  if (!item || typeof item !== "object") return `${path} is required`;
+  const i = item as Record<string, unknown>;
+  if (!nonEmptyString(i.name)) return `${path}.name is required`;
+  if (!nonEmptyString(i.description)) return `${path}.description is required`;
+  return null;
+}
+
+function validateReceiptLine(line: unknown, index: number): string | null {
+  const prefix = `receiptLines[${index}]`;
+  if (!line || typeof line !== "object") return `${prefix} is required`;
+  const l = line as Record<string, unknown>;
+  if (!nonEmptyString(l.id)) return `${prefix}.id is required`;
+  if (typeof l.receivedQuantity !== "number") {
+    return `${prefix}.receivedQuantity is required and must be a number`;
+  }
+  if (!nonEmptyString(l.receivedQuantityUnitCode)) {
+    return `${prefix}.receivedQuantityUnitCode is required`;
+  }
+  return validateItem(l.item, `${prefix}.item`);
+}
+
+function validateReceiptAdviceCreateRequest(body: Record<string, unknown>): string | null {
+  normalizeReceiptAdviceBody(body);
+
+  if (!nonEmptyString(body.documentId)) return "documentId (or documentID) is required";
+  if (!nonEmptyString(body.senderId)) return "senderId is required";
+  if (!nonEmptyString(body.receiverId)) return "receiverId is required";
+  if (typeof body.copyIndicator !== "boolean") {
+    return "copyIndicator is required and must be a boolean";
+  }
+  if (!nonEmptyString(body.documentStatusCode)) return "documentStatusCode is required";
+
+  const orderRef = validateOrderReference(body.orderReference, "orderReference");
+  if (orderRef) return orderRef;
+
+  if (body.despatchDocumentReference != null) {
+    const dr = validateDocumentReference(
+      body.despatchDocumentReference,
+      "despatchDocumentReference"
+    );
+    if (dr) return dr;
+  }
+
+  const dsp = body.despatchSupplierParty;
+  if (!dsp || typeof dsp !== "object") return "despatchSupplierParty is required";
+  const supplierParty = validateParty(
+    (dsp as Record<string, unknown>).party,
+    "despatchSupplierParty.party"
+  );
+  if (supplierParty) return supplierParty;
+
+  const dcp = body.deliveryCustomerParty;
+  if (!dcp || typeof dcp !== "object") return "deliveryCustomerParty is required";
+  const deliveryParty = validateParty(
+    (dcp as Record<string, unknown>).party,
+    "deliveryCustomerParty.party"
+  );
+  if (deliveryParty) return deliveryParty;
+
+  const ship = body.shipment;
+  const shipErr = validateReceiptShipment(ship, "shipment");
+  if (shipErr) return shipErr;
+
+  const lines = body.receiptLines;
+  if (!Array.isArray(lines) || lines.length < 1) {
+    return "receiptLines is required and must be a non-empty array";
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const err = validateReceiptLine(lines[i], i);
+    if (err) return err;
+  }
+
+  return null;
+}
+
+/// /////////////////////////////////////////////////////////////////////////////
+/// Sanitisation
+/// /////////////////////////////////////////////////////////////////////////////
+
+function sanitisePostalAddress(raw: Record<string, unknown>): PostalAddress {
+  const postalAddress: PostalAddress = {};
+  if (nonEmptyString(raw.streetName)) postalAddress.streetName = raw.streetName;
+  if (nonEmptyString(raw.buildingName)) postalAddress.buildingName = raw.buildingName;
+  if (nonEmptyString(raw.buildingNumber)) postalAddress.buildingNumber = raw.buildingNumber;
+  if (nonEmptyString(raw.cityName)) postalAddress.cityName = raw.cityName;
+  if (nonEmptyString(raw.postalZone)) postalAddress.postalZone = raw.postalZone;
+  if (nonEmptyString(raw.countrySubentity)) postalAddress.countrySubentity = raw.countrySubentity;
+  if (nonEmptyString(raw.addressLine)) postalAddress.addressLine = raw.addressLine;
+  if (nonEmptyString(raw.countryIdentificationCode)) {
+    postalAddress.countryIdentificationCode = raw.countryIdentificationCode;
+  }
+  return postalAddress;
+}
+
+function sanitiseContact(raw: Record<string, unknown>): Contact {
+  const contact: Contact = {};
+  if (nonEmptyString(raw.name)) contact.name = raw.name;
+  if (nonEmptyString(raw.telephone)) contact.telephone = raw.telephone;
+  if (nonEmptyString(raw.telefax)) contact.telefax = raw.telefax;
+  if (nonEmptyString(raw.email)) contact.email = raw.email;
+  return contact;
+}
+
+function sanitiseParty(raw: Record<string, unknown>): Party {
+  const party: Party = {};
+  if (nonEmptyString(raw.name)) party.name = raw.name;
+  if (raw.postalAddress && typeof raw.postalAddress === "object") {
+    party.postalAddress = sanitisePostalAddress(raw.postalAddress as Record<string, unknown>);
+  }
+  if (raw.contact && typeof raw.contact === "object") {
+    party.contact = sanitiseContact(raw.contact as Record<string, unknown>);
+  }
+  return party;
+}
+
+function sanitiseOrderReference(raw: Record<string, unknown>): OrderReference {
+  const o: OrderReference = {};
+  if (nonEmptyString(raw.id)) o.id = raw.id;
+  if (nonEmptyString(raw.salesOrderId)) o.salesOrderId = raw.salesOrderId;
+  if (nonEmptyString(raw.uuid)) o.uuid = raw.uuid;
+  if (nonEmptyString(raw.issueDate)) o.issueDate = raw.issueDate;
+  return o;
+}
+
+function sanitiseDocumentReference(raw: Record<string, unknown>): DocumentReference {
+  const d: DocumentReference = {};
+  if (nonEmptyString(raw.id)) d.id = raw.id;
+  if (nonEmptyString(raw.uuid)) d.uuid = raw.uuid;
+  if (nonEmptyString(raw.issueDate)) d.issueDate = raw.issueDate;
+  return d;
+}
+
+function sanitiseDeliveryPeriod(raw: Record<string, unknown>): DeliveryPeriod {
+  const d: DeliveryPeriod = {};
+  if (nonEmptyString(raw.startDate)) d.startDate = raw.startDate;
+  if (nonEmptyString(raw.startTime)) d.startTime = raw.startTime;
+  if (nonEmptyString(raw.endDate)) d.endDate = raw.endDate;
+  if (nonEmptyString(raw.endTime)) d.endTime = raw.endTime;
+  return d;
+}
+
+function sanitiseReceiptDelivery(raw: Record<string, unknown>): ReceiptDelivery {
+  const d: ReceiptDelivery = {};
+  if (nonEmptyString(raw.id)) d.id = raw.id;
+  if (typeof raw.quantity === "number") d.quantity = raw.quantity;
+  if (nonEmptyString(raw.quantityUnitCode)) d.quantityUnitCode = raw.quantityUnitCode;
+  if (nonEmptyString(raw.actualDeliveryDate)) d.actualDeliveryDate = raw.actualDeliveryDate;
+  if (nonEmptyString(raw.actualDeliveryTime)) d.actualDeliveryTime = raw.actualDeliveryTime;
+  if (raw.requestedDeliveryPeriod && typeof raw.requestedDeliveryPeriod === "object") {
+    d.requestedDeliveryPeriod = sanitiseDeliveryPeriod(
+      raw.requestedDeliveryPeriod as Record<string, unknown>
+    );
+  }
+  return d;
+}
+
+function sanitiseReceiptShipment(raw: Record<string, unknown>): ReceiptAdviceShipment {
+  const s: ReceiptAdviceShipment = {};
+  if (nonEmptyString(raw.id)) s.id = raw.id;
+  if (nonEmptyString(raw.consignmentId)) s.consignmentId = raw.consignmentId;
+  if (raw.delivery && typeof raw.delivery === "object") {
+    s.delivery = sanitiseReceiptDelivery(raw.delivery as Record<string, unknown>);
+  }
+  return s;
+}
+
+function sanitiseItemIdentification(raw: Record<string, unknown>): ItemIdentification {
+  const o: ItemIdentification = {};
+  if (nonEmptyString(raw.id)) o.id = raw.id;
+  return o;
+}
+
+function sanitiseLotIdentification(raw: Record<string, unknown>): LotIdentification {
+  const o: LotIdentification = {};
+  if (nonEmptyString(raw.lotNumberId)) o.lotNumberId = raw.lotNumberId;
+  if (nonEmptyString(raw.expiryDate)) o.expiryDate = raw.expiryDate;
+  return o;
+}
+
+function sanitiseItemInstance(raw: Record<string, unknown>): ItemInstance {
+  const o: ItemInstance = {};
+  if (raw.lotIdentification && typeof raw.lotIdentification === "object") {
+    o.lotIdentification = sanitiseLotIdentification(raw.lotIdentification as Record<string, unknown>);
+  }
+  return o;
+}
+
+function sanitiseItem(raw: Record<string, unknown>): Item {
+  const item: Item = {};
+  if (nonEmptyString(raw.description)) item.description = raw.description;
+  if (nonEmptyString(raw.name)) item.name = raw.name;
+  if (raw.buyersItemIdentification && typeof raw.buyersItemIdentification === "object") {
+    item.buyersItemIdentification = sanitiseItemIdentification(
+      raw.buyersItemIdentification as Record<string, unknown>
+    );
+  }
+  if (raw.sellersItemIdentification && typeof raw.sellersItemIdentification === "object") {
+    item.sellersItemIdentification = sanitiseItemIdentification(
+      raw.sellersItemIdentification as Record<string, unknown>
+    );
+  }
+  if (raw.itemInstance && typeof raw.itemInstance === "object") {
+    item.itemInstance = sanitiseItemInstance(raw.itemInstance as Record<string, unknown>);
+  }
+  return item;
+}
+
+function sanitiseReceiptLine(raw: Record<string, unknown>): ReceiptLine {
+  const line: ReceiptLine = {};
+  if (nonEmptyString(raw.id)) line.id = raw.id;
+  if (nonEmptyString(raw.note)) line.note = raw.note;
+  if (typeof raw.receivedQuantity === "number") line.receivedQuantity = raw.receivedQuantity;
+  if (nonEmptyString(raw.receivedQuantityUnitCode)) {
+    line.receivedQuantityUnitCode = raw.receivedQuantityUnitCode;
+  }
+  if (typeof raw.shortQuantity === "number") line.shortQuantity = raw.shortQuantity;
+  if (nonEmptyString(raw.shortQuantityUnitCode)) {
+    line.shortQuantityUnitCode = raw.shortQuantityUnitCode;
+  }
+  if (raw.item && typeof raw.item === "object") {
+    line.item = sanitiseItem(raw.item as Record<string, unknown>);
+  }
+  return line;
+}
+
+function sanitiseDespatchSupplierParty(raw: Record<string, unknown>): DespatchSupplierParty {
+  const dsp: DespatchSupplierParty = {};
+  if (nonEmptyString(raw.customerAssignedAccountId)) {
+    dsp.customerAssignedAccountId = raw.customerAssignedAccountId;
+  }
+  if (raw.party && typeof raw.party === "object") {
+    dsp.party = sanitiseParty(raw.party as Record<string, unknown>);
+  }
+  return dsp;
+}
+
+function sanitiseDeliveryCustomerParty(raw: Record<string, unknown>): DeliveryCustomerParty {
+  const dcp: DeliveryCustomerParty = {};
+  if (nonEmptyString(raw.customerAssignedAccountId)) {
+    dcp.customerAssignedAccountId = raw.customerAssignedAccountId;
+  }
+  if (nonEmptyString(raw.supplierAssignedAccountId)) {
+    dcp.supplierAssignedAccountId = raw.supplierAssignedAccountId;
+  }
+  if (raw.party && typeof raw.party === "object") {
+    dcp.party = sanitiseParty(raw.party as Record<string, unknown>);
+  }
+  return dcp;
+}
+
+function sanitiseReceiptAdviceCreate(
+  body: Record<string, unknown>,
+  receiptAdviceId: string,
+  despatchAdviceId: string
+): Record<string, unknown> {
+  normalizeReceiptAdviceBody(body);
+
+  const item: Record<string, unknown> = {
+    receiptAdviceId,
+    uuid: receiptAdviceId,
+    despatchAdviceId,
+    documentId: String(body.documentId),
+    senderId: String(body.senderId),
+    receiverId: String(body.receiverId),
+    copyIndicator: body.copyIndicator,
+    documentStatusCode: String(body.documentStatusCode),
+  };
+
+  item.issueDate = nonEmptyString(body.issueDate)
+    ? body.issueDate
+    : new Date().toISOString().slice(0, 10);
+
+  if (nonEmptyString(body.replaces)) item.replaces = body.replaces;
+  if (nonEmptyString(body.note)) item.note = body.note;
+
+  if (body.orderReference && typeof body.orderReference === "object") {
+    item.orderReference = sanitiseOrderReference(body.orderReference as Record<string, unknown>);
+  }
+  if (body.despatchDocumentReference && typeof body.despatchDocumentReference === "object") {
+    item.despatchDocumentReference = sanitiseDocumentReference(
+      body.despatchDocumentReference as Record<string, unknown>
+    );
+  }
+  if (body.despatchSupplierParty && typeof body.despatchSupplierParty === "object") {
+    item.despatchSupplierParty = sanitiseDespatchSupplierParty(
+      body.despatchSupplierParty as Record<string, unknown>
+    );
+  }
+  if (body.deliveryCustomerParty && typeof body.deliveryCustomerParty === "object") {
+    item.deliveryCustomerParty = sanitiseDeliveryCustomerParty(
+      body.deliveryCustomerParty as Record<string, unknown>
+    );
+  }
+  if (body.shipment && typeof body.shipment === "object") {
+    item.shipment = sanitiseReceiptShipment(body.shipment as Record<string, unknown>);
+  }
+  if (Array.isArray(body.receiptLines)) {
+    item.receiptLines = body.receiptLines.map((line) =>
+      sanitiseReceiptLine(line as Record<string, unknown>)
+    );
+  }
+
+  return item;
+}
 
 // ---------------------------------------------------------------------------
 // GET /receipt-advices/{receiptAdviceId}
-// Obtain the Receipt Advice document
 // ---------------------------------------------------------------------------
 export async function getReceiptAdvice(event: any) {
-  // 1. Extract path parameter
-  const receiptAdviceId: string | undefined =
-    event.pathParameters?.receiptAdviceId;
+  const receiptAdviceId: string | undefined = event.pathParameters?.receiptAdviceId;
 
   if (!receiptAdviceId) {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        error: "BadRequest",
-        message: "receiptAdviceId path parameter is required",
-      }),
-    };
+    return badRequest("receiptAdviceId path parameter is required");
   }
 
-  // 2. Look up the receipt advice — 404 if not found
   let receiptItem: Record<string, any>;
   try {
     const result = await dynamo.send(
       new GetItemCommand({
-        TableName: RECEIPT_TABLE,
+        TableName: RECEIPT_ADVICES_TABLE,
         Key: marshall({ receiptAdviceId }),
       })
     );
@@ -58,14 +579,9 @@ export async function getReceiptAdvice(event: any) {
     receiptItem = unmarshall(result.Item);
   } catch (err) {
     console.error("DynamoDB GetItem (ReceiptAdvices) error:", err);
-    return {
-      statusCode: 500,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: "InternalServerError", message: "Unexpected error" }),
-    };
+    return internalError(err);
   }
 
-  // 3. 409 if already fully received
   if (receiptItem.documentStatusCode === "FULLY_RECEIVED") {
     return {
       statusCode: 409,
@@ -77,7 +593,6 @@ export async function getReceiptAdvice(event: any) {
     };
   }
 
-  // 4. Return the receipt advice document
   return {
     statusCode: 200,
     headers: CORS_HEADERS,
@@ -87,85 +602,25 @@ export async function getReceiptAdvice(event: any) {
 
 // ---------------------------------------------------------------------------
 // POST /despatch-advices/{despatchAdviceId}/receipt-advices
-// Delivery party confirms receipt or reports discrepancies.
 // ---------------------------------------------------------------------------
 export async function createReceiptAdvice(event: any) {
-  // 1. Extract path parameter
-  const despatchAdviceId: string | undefined =
-    event.pathParameters?.despatchAdviceId;
+  const despatchAdviceId: string | undefined = event.pathParameters?.despatchAdviceId;
 
-  if (!despatchAdviceId) {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        error: "BadRequest",
-        message: "despatchAdviceId path parameter is required",
-      }),
-    };
+  if (!despatchAdviceId || !nonEmptyString(despatchAdviceId)) {
+    return badRequest("despatchAdviceId path parameter is required");
   }
 
-  // 2. Parse request body
-  let body: any;
-  try {
-    body =
-      typeof event.body === "string"
-        ? JSON.parse(event.body)
-        : event.body ?? {};
-  } catch {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        error: "BadRequest",
-        message: "Invalid JSON body",
-      }),
-    };
-  }
+  const { body, error: parseError } = parseBody(event);
+  if (parseError) return badRequest(parseError);
 
-  // 3. Validate receiptLines
-  const { receiptLines } = body as { receiptLines?: any[] };
+  const validationError = validateReceiptAdviceCreateRequest(body);
+  if (validationError) return badRequest(validationError);
 
-  if (!Array.isArray(receiptLines) || receiptLines.length === 0) {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({
-        error: "BadRequest",
-        message: "receiptLines must be a non-empty array",
-      }),
-    };
-  }
-
-  for (const line of receiptLines) {
-    if (line.receivedQuantity === undefined || line.receivedQuantity === null) {
-      return {
-        statusCode: 400,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-          error: "BadRequest",
-          message: "Each receiptLine must include receivedQuantity",
-        }),
-      };
-    }
-    if (typeof line.receivedQuantity !== "number") {
-      return {
-        statusCode: 400,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-          error: "BadRequest",
-          message: "receivedQuantity must be a number",
-        }),
-      };
-    }
-  }
-
-  // 4. Look up the despatch advice — 404 if not found
   let despatchItem: Record<string, any>;
   try {
     const result = await dynamo.send(
       new GetItemCommand({
-        TableName: DESPATCH_TABLE,
+        TableName: DESPATCH_ADVICES_TABLE,
         Key: marshall({ despatchAdviceId }),
       })
     );
@@ -184,14 +639,9 @@ export async function createReceiptAdvice(event: any) {
     despatchItem = unmarshall(result.Item);
   } catch (err) {
     console.error("DynamoDB GetItem (DespatchAdvices) error:", err);
-    return {
-      statusCode: 500,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: "InternalServerError", message: "Unexpected error" }),
-    };
+    return internalError(err);
   }
 
-  // 5. 409 if already fully received
   if (despatchItem.status === "RECEIVED") {
     return {
       statusCode: 409,
@@ -203,56 +653,25 @@ export async function createReceiptAdvice(event: any) {
     };
   }
 
-  // 6. Build and persist the ReceiptAdvice record
   const receiptAdviceId = uuidv4();
-  const issueDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-
-  const receiptAdviceItem = {
-    receiptAdviceId,
-    despatchAdviceId,
-    issueDate,
-    documentStatusCode: "RECEIVED",
-    receiptLines: receiptLines.map((line: any) => ({
-      id: line.id ?? uuidv4(),
-      receivedQuantity: line.receivedQuantity,
-      ...(line.receivedQuantityUnitCode !== undefined && {
-        receivedQuantityUnitCode: line.receivedQuantityUnitCode,
-      }),
-      ...(line.shortQuantity !== undefined && {
-        shortQuantity: line.shortQuantity,
-      }),
-      ...(line.shortQuantityUnitCode !== undefined && {
-        shortQuantityUnitCode: line.shortQuantityUnitCode,
-      }),
-      ...(line.note !== undefined && { note: line.note }),
-      ...(line.item !== undefined && { item: line.item }),
-    })),
-    // Forward party IDs from the despatch if present
-    ...(despatchItem.senderId && { submitterId: despatchItem.receiverId }),
-    ...(despatchItem.receiverId && { receiverId: despatchItem.senderId }),
-  };
+  const receiptAdviceItem = sanitiseReceiptAdviceCreate(body, receiptAdviceId, despatchAdviceId);
 
   try {
     await dynamo.send(
       new PutItemCommand({
-        TableName: RECEIPT_TABLE,
+        TableName: RECEIPT_ADVICES_TABLE,
         Item: marshall(receiptAdviceItem, { removeUndefinedValues: true }),
       })
     );
   } catch (err) {
     console.error("DynamoDB PutItem (ReceiptAdvices) error:", err);
-    return {
-      statusCode: 500,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: "InternalServerError", message: "Unexpected error" }),
-    };
+    return internalError(err);
   }
 
-  // 7. Update despatch advice status to RECEIVED
   try {
     await dynamo.send(
       new UpdateItemCommand({
-        TableName: DESPATCH_TABLE,
+        TableName: DESPATCH_ADVICES_TABLE,
         Key: marshall({ despatchAdviceId }),
         UpdateExpression: "SET #st = :s",
         ExpressionAttributeNames: { "#st": "status" },
@@ -260,11 +679,9 @@ export async function createReceiptAdvice(event: any) {
       })
     );
   } catch (err) {
-    // Non-fatal — the receipt advice was already saved; log and continue.
     console.error("DynamoDB UpdateItem (DespatchAdvices) error:", err);
   }
 
-  // 8. Return success
   return {
     statusCode: 200,
     headers: CORS_HEADERS,

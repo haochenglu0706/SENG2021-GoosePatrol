@@ -91,6 +91,12 @@ interface OrderReference {
     issueDate?: string;
 }
 
+/** UBL cac:AdditionalDocumentReference → cbc:ID, cbc:DocumentType */
+interface AdditionalDocumentReference {
+    id: string;
+    documentType: string;
+}
+
 interface OrderLineReference {
     lineId?: string;
     salesOrderLineId?: string;
@@ -126,6 +132,8 @@ interface DespatchAdviceCreateRequest {
     deliveryCustomerParty?: DeliveryCustomerParty;
     shipment?: Shipment;
     despatchLines?: DespatchLine[];
+    /** Single reference or list (UBL allows 0..n AdditionalDocumentReference). */
+    additionalDocumentReference?: AdditionalDocumentReference | AdditionalDocumentReference[];
 }
 
 interface DespatchAdvice {
@@ -144,6 +152,7 @@ interface DespatchAdvice {
     deliveryCustomerParty?: DeliveryCustomerParty;
     shipment?: Shipment;
     despatchLines?: DespatchLine[];
+    additionalDocumentReference?: AdditionalDocumentReference[];
     status?: string;
 }
 
@@ -180,6 +189,31 @@ function internalError(err: any) {
 function normalizeDespatchAdviceBody(body: Record<string, unknown>): void {
     if (body.documentID != null && body.documentId == null) {
         body.documentId = body.documentID;
+    }
+    normalizeAdditionalDocumentReferenceField(body);
+}
+
+/** Accept cbc:ID / cbc:DocumentType style keys from XML-oriented mappers. */
+function normalizeAdditionalDocumentReferenceKeys(ref: Record<string, unknown>): void {
+    if (ref.id == null && ref.ID != null) ref.id = ref.ID;
+    if (ref.documentType == null && ref.DocumentType != null) {
+        ref.documentType = ref.DocumentType;
+    }
+}
+
+function normalizeAdditionalDocumentReferenceField(body: Record<string, unknown>): void {
+    const raw = body.additionalDocumentReference;
+    if (raw == null) return;
+    if (Array.isArray(raw)) {
+        for (const item of raw) {
+            if (item && typeof item === "object") {
+                normalizeAdditionalDocumentReferenceKeys(item as Record<string, unknown>);
+            }
+        }
+        return;
+    }
+    if (typeof raw === "object") {
+        normalizeAdditionalDocumentReferenceKeys(raw as Record<string, unknown>);
     }
 }
 
@@ -282,6 +316,29 @@ function validateItem(item: unknown, path: string): string | null {
     return null;
 }
 
+function validateAdditionalDocumentReference(ref: unknown, path: string): string | null {
+    if (!ref || typeof ref !== "object") return `${path} must be an object`;
+    const r = ref as Record<string, unknown>;
+    normalizeAdditionalDocumentReferenceKeys(r);
+    if (!nonEmptyString(r.id)) return `${path}.id is required`;
+    if (!nonEmptyString(r.documentType)) return `${path}.documentType is required`;
+    return null;
+}
+
+function validateOptionalAdditionalDocumentReference(body: Record<string, unknown>): string | null {
+    const raw = body.additionalDocumentReference;
+    if (raw === undefined || raw === null) return null;
+    if (Array.isArray(raw)) {
+        if (raw.length === 0) return null;
+        for (let i = 0; i < raw.length; i++) {
+            const err = validateAdditionalDocumentReference(raw[i], `additionalDocumentReference[${i}]`);
+            if (err) return err;
+        }
+        return null;
+    }
+    return validateAdditionalDocumentReference(raw, "additionalDocumentReference");
+}
+
 function validateDespatchLine(line: unknown, index: number): string | null {
     const prefix = `despatchLines[${index}]`;
     if (!line || typeof line !== "object") return `${prefix} is required`;
@@ -308,6 +365,9 @@ function validateDespatchAdvice(body: Record<string, unknown>): string | null {
 
     const orderRef = validateOrderReference(body.orderReference, "orderReference");
     if (orderRef) return orderRef;
+
+    const addDocRef = validateOptionalAdditionalDocumentReference(body);
+    if (addDocRef) return addDocRef;
 
     const dsp = body.despatchSupplierParty;
     if (!dsp || typeof dsp !== "object") return "despatchSupplierParty is required";
@@ -373,6 +433,14 @@ function sanitiseParty(raw: Record<string, unknown>): Party {
         party.contact = sanitiseContact(raw.contact as Record<string, unknown>);
     }
     return party;
+}
+
+function sanitiseAdditionalDocumentReference(raw: Record<string, unknown>): AdditionalDocumentReference {
+    normalizeAdditionalDocumentReferenceKeys(raw);
+    return {
+        id: String(raw.id),
+        documentType: String(raw.documentType),
+    };
 }
 
 function sanitiseOrderReference(raw: Record<string, unknown>): OrderReference {
@@ -524,6 +592,7 @@ function sanitiseDespatchAdvice(body: Record<string, unknown>): DespatchAdvice {
         documentId: String(body.documentId),
         senderId: String(body.senderId),
         receiverId: String(body.receiverId),
+        status: "draft",
     };
 
     if (typeof body.copyIndicator === "boolean") sanitised.copyIndicator = body.copyIndicator;
@@ -555,6 +624,17 @@ function sanitiseDespatchAdvice(body: Record<string, unknown>): DespatchAdvice {
         sanitised.despatchLines = body.despatchLines.map((line) =>
             sanitiseDespatchLine(line as Record<string, unknown>)
         );
+    }
+
+    const addRaw = body.additionalDocumentReference;
+    if (addRaw != null) {
+        const list = Array.isArray(addRaw) ? addRaw : [addRaw];
+        const refs = list
+            .filter((x) => x && typeof x === "object")
+            .map((x) => sanitiseAdditionalDocumentReference(x as Record<string, unknown>));
+        if (refs.length > 0) {
+            sanitised.additionalDocumentReference = refs;
+        }
     }
 
     return sanitised;

@@ -158,28 +158,44 @@ describe("auth", () => {
 
     test("returns 400 when username is empty string", async () => {
       const res = await register({
-        body: JSON.stringify({ username: "   ", password: "pass1234" }),
+        body: JSON.stringify({
+          username: "   ",
+          password: "pass1234",
+          email: "alice@test.com",
+        }),
       });
       expect(res.statusCode).toBe(400);
     });
 
     test("returns 400 when password is too short", async () => {
       const res = await register({
-        body: JSON.stringify({ username: "alice", password: "short1" }),
+        body: JSON.stringify({
+          username: "alice",
+          password: "short1",
+          email: "alice@test.com",
+        }),
       });
       expect(res.statusCode).toBe(400);
     });
 
     test("returns 400 when password has no letter", async () => {
       const res = await register({
-        body: JSON.stringify({ username: "alice", password: "12345678" }),
+        body: JSON.stringify({
+          username: "alice",
+          password: "12345678",
+          email: "alice@test.com",
+        }),
       });
       expect(res.statusCode).toBe(400);
     });
 
     test("returns 400 when password has no digit", async () => {
       const res = await register({
-        body: JSON.stringify({ username: "alice", password: "password" }),
+        body: JSON.stringify({
+          username: "alice",
+          password: "password",
+          email: "alice@test.com",
+        }),
       });
       expect(res.statusCode).toBe(400);
     });
@@ -188,23 +204,32 @@ describe("auth", () => {
       mockSend.mockResolvedValueOnce({ Items: [{ id: "existing" }] });
 
       const res = await register({
-        body: JSON.stringify({ username: "taken", password: "validPass1" }),
+        body: JSON.stringify({
+          username: "taken",
+          password: "validPass1",
+          email: "taken@test.com",
+        }),
       });
       expect(res.statusCode).toBe(400);
     });
 
     test("returns 201 and creates client when valid", async () => {
       mockSend
-        .mockResolvedValueOnce({ Items: [] }) 
-        .mockResolvedValueOnce({}); 
+        .mockResolvedValueOnce({ Items: [] })
+        .mockResolvedValueOnce({});
 
       const res = await register({
-        body: JSON.stringify({ username: "newuser", password: "securePass1" }),
+        body: JSON.stringify({
+          username: "newuser",
+          password: "securePass1",
+          email: "newuser@example.com",
+        }),
       });
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body.username).toBe("newuser");
+      expect(body.email).toBe("newuser@example.com");
       expect(body.clientId).toBeDefined();
       expect(mockSend).toHaveBeenCalledTimes(2);
     });
