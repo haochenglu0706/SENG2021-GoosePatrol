@@ -10,3 +10,6 @@ export const SESSIONS_TABLE =
 
 export const DESPATCH_ADVICES_TABLE =
   (process.env.DESPATCH_ADVICES_TABLE_NAME as string) || "DespatchAdvices";
+
+export const RECEIPT_ADVICES_TABLE =
+  (process.env.RECEIPT_ADVICES_TABLE_NAME as string) || "ReceiptAdvices";

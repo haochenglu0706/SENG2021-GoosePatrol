@@ -9,9 +9,50 @@ beforeEach(() => {
   ddbMock.reset();
 });
 
-// ---------------------------------------------------------------------------
-// Helper: build a minimal valid despatch advice item in DynamoDB wire format
-// ---------------------------------------------------------------------------
+const REQ_POSTAL = {
+  streetName: '1 Warehouse Rd',
+  cityName: 'Sydney',
+  postalZone: '2000',
+  countryIdentificationCode: 'AU',
+};
+
+const REQ_ORDER_REF = { id: 'ORD-001' };
+
+const MINIMAL_RECEIPT_LINE = {
+  id: 'line-1',
+  receivedQuantity: 5,
+  receivedQuantityUnitCode: 'EA',
+  item: { name: 'Widget', description: 'A widget' },
+};
+
+/** Matches swagger.yaml ReceiptAdviceCreateRequest required fields */
+const VALID_RECEIPT_BODY = {
+  documentId: 'RA-DOC-001',
+  senderId: 'sender-1',
+  receiverId: 'receiver-1',
+  copyIndicator: false,
+  documentStatusCode: 'RECEIVED',
+  orderReference: REQ_ORDER_REF,
+  despatchSupplierParty: {
+    party: {
+      name: 'Supplier Co',
+      postalAddress: REQ_POSTAL,
+    },
+  },
+  deliveryCustomerParty: {
+    party: {
+      name: 'Buyer Co',
+      postalAddress: REQ_POSTAL,
+    },
+  },
+  shipment: {
+    id: 'SHIP-1',
+    consignmentId: 'CONS-1',
+    delivery: {},
+  },
+  receiptLines: [MINIMAL_RECEIPT_LINE],
+};
+
 const makeDespatchItem = (status = 'DESPATCHED') =>
   marshall(
     {
@@ -23,19 +64,12 @@ const makeDespatchItem = (status = 'DESPATCHED') =>
     { removeUndefinedValues: true }
   );
 
-// ---------------------------------------------------------------------------
-// Helper: build a minimal valid event
-// ---------------------------------------------------------------------------
-const makeEvent = (despatchAdviceId: string, body: any) => ({
+const makeEvent = (despatchAdviceId: string, body: Record<string, unknown>) => ({
   httpMethod: 'POST',
   path: `/despatch-advices/${despatchAdviceId}/receipt-advices`,
   pathParameters: { despatchAdviceId },
   body: JSON.stringify(body),
 });
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe('createReceiptAdvice', () => {
   test('returns 400 when despatchAdviceId is missing', async () => {
@@ -50,38 +84,58 @@ describe('createReceiptAdvice', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  test('returns 400 when receiptLines is missing', async () => {
-    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', {}));
+  test('returns 400 when documentId is missing', async () => {
+    const { documentId: _d, ...rest } = VALID_RECEIPT_BODY;
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', rest as Record<string, unknown>));
     expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body.message).toMatch(/documentId/);
+  });
+
+  test('returns 400 when receiptLines is missing', async () => {
+    const { receiptLines: _r, ...rest } = VALID_RECEIPT_BODY;
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', rest as Record<string, unknown>));
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body.message).toMatch(/receiptLines/);
   });
 
   test('returns 400 when receiptLines is empty', async () => {
-    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', { receiptLines: [] }));
+    const res = await createReceiptAdvice(
+      makeEvent('DESPATCH-001', { ...VALID_RECEIPT_BODY, receiptLines: [] })
+    );
     expect(res.statusCode).toBe(400);
   });
 
   test('returns 400 when a receiptLine is missing receivedQuantity', async () => {
     const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ id: 'line-1' }] })
+      makeEvent('DESPATCH-001', {
+        ...VALID_RECEIPT_BODY,
+        receiptLines: [
+          {
+            id: 'line-1',
+            receivedQuantityUnitCode: 'EA',
+            item: { name: 'W', description: 'D' },
+          },
+        ],
+      })
     );
     expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body);
+    expect(body.message).toMatch(/receivedQuantity/);
   });
 
   test('returns 404 when despatch advice is not found', async () => {
     ddbMock.on(GetItemCommand).resolves({ Item: undefined });
 
-    const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 5 }] })
-    );
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', VALID_RECEIPT_BODY));
     expect(res.statusCode).toBe(404);
   });
 
   test('returns 409 when despatch advice is already RECEIVED', async () => {
     ddbMock.on(GetItemCommand).resolves({ Item: makeDespatchItem('RECEIVED') });
 
-    const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 5 }] })
-    );
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', VALID_RECEIPT_BODY));
     expect(res.statusCode).toBe(409);
   });
 
@@ -92,7 +146,8 @@ describe('createReceiptAdvice', () => {
 
     const res = await createReceiptAdvice(
       makeEvent('DESPATCH-001', {
-        receiptLines: [{ receivedQuantity: 10, shortQuantity: 2 }],
+        ...VALID_RECEIPT_BODY,
+        receiptLines: [{ ...MINIMAL_RECEIPT_LINE, receivedQuantity: 10, shortQuantity: 2 }],
       })
     );
 
@@ -107,26 +162,25 @@ describe('createReceiptAdvice', () => {
     ddbMock.on(PutItemCommand).resolves({});
     ddbMock.on(UpdateItemCommand).rejects(new Error('update failed'));
 
-    const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 3 }] })
-    );
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', VALID_RECEIPT_BODY));
 
     expect(res.statusCode).toBe(200);
   });
 
   test('returns 400 when receivedQuantity is not a number', async () => {
-  const res = await createReceiptAdvice(
-    makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 'five' }] })
-  );
-  expect(res.statusCode).toBe(400);
-});
+    const res = await createReceiptAdvice(
+      makeEvent('DESPATCH-001', {
+        ...VALID_RECEIPT_BODY,
+        receiptLines: [{ ...MINIMAL_RECEIPT_LINE, receivedQuantity: 'five' as unknown as number }],
+      })
+    );
+    expect(res.statusCode).toBe(400);
+  });
 
   test('returns 500 when DynamoDB GetItem throws', async () => {
     ddbMock.on(GetItemCommand).rejects(new Error('connection error'));
 
-    const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 5 }] })
-    );
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', VALID_RECEIPT_BODY));
     expect(res.statusCode).toBe(500);
   });
 
@@ -134,9 +188,7 @@ describe('createReceiptAdvice', () => {
     ddbMock.on(GetItemCommand).resolves({ Item: makeDespatchItem('DESPATCHED') });
     ddbMock.on(PutItemCommand).rejects(new Error('write error'));
 
-    const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 5 }] })
-    );
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', VALID_RECEIPT_BODY));
     expect(res.statusCode).toBe(500);
   });
 
@@ -145,7 +197,7 @@ describe('createReceiptAdvice', () => {
       httpMethod: 'POST',
       path: '/despatch-advices//receipt-advices',
       pathParameters: null,
-      body: JSON.stringify({ receiptLines: [{ receivedQuantity: 5 }] }),
+      body: JSON.stringify(VALID_RECEIPT_BODY),
     });
     expect(res.statusCode).toBe(400);
   });
@@ -154,7 +206,7 @@ describe('createReceiptAdvice', () => {
     const res = await createReceiptAdvice({
       httpMethod: 'POST',
       path: '/despatch-advices//receipt-advices',
-      body: JSON.stringify({ receiptLines: [{ receivedQuantity: 5 }] }),
+      body: JSON.stringify(VALID_RECEIPT_BODY),
     });
     expect(res.statusCode).toBe(400);
   });
@@ -166,9 +218,7 @@ describe('createReceiptAdvice', () => {
     ddbMock.on(PutItemCommand).resolves({});
     ddbMock.on(UpdateItemCommand).resolves({});
 
-    const res = await createReceiptAdvice(
-      makeEvent('DESPATCH-001', { receiptLines: [{ receivedQuantity: 5 }] })
-    );
+    const res = await createReceiptAdvice(makeEvent('DESPATCH-001', VALID_RECEIPT_BODY));
     expect(res.statusCode).toBe(200);
   });
 
@@ -179,16 +229,31 @@ describe('createReceiptAdvice', () => {
 
     const res = await createReceiptAdvice(
       makeEvent('DESPATCH-001', {
-        receiptLines: [{
-          id: 'line-1',
-          receivedQuantity: 10,
-          receivedQuantityUnitCode: 'EA',
-          shortQuantity: 2,
-          shortQuantityUnitCode: 'EA',
-          note: 'damaged',
-          item: { name: 'Widget', description: 'A widget' },
-        }],
+        ...VALID_RECEIPT_BODY,
+        receiptLines: [
+          {
+            id: 'line-1',
+            receivedQuantity: 10,
+            receivedQuantityUnitCode: 'EA',
+            shortQuantity: 2,
+            shortQuantityUnitCode: 'EA',
+            note: 'damaged',
+            item: { name: 'Widget', description: 'A widget' },
+          },
+        ],
       })
+    );
+    expect(res.statusCode).toBe(200);
+  });
+
+  test('accepts documentID alias and normalises to documentId', async () => {
+    ddbMock.on(GetItemCommand).resolves({ Item: makeDespatchItem('DESPATCHED') });
+    ddbMock.on(PutItemCommand).resolves({});
+    ddbMock.on(UpdateItemCommand).resolves({});
+
+    const { documentId: _omit, ...rest } = VALID_RECEIPT_BODY;
+    const res = await createReceiptAdvice(
+      makeEvent('DESPATCH-001', { ...rest, documentID: 'RA-ALIAS-1' })
     );
     expect(res.statusCode).toBe(200);
   });

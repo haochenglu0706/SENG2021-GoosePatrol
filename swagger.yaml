@@ -557,6 +557,21 @@ components:
     despatchId_fulfilmentcancellation_body:
       type: object
       properties:
+        documentId:
+          type: string
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - DESPATCHED
+            - RECEIVED
+            - FULFILMENT_CANCELLED
+        issueDate:
+          type: string
+          format: date
+        senderId:
+          type: string
+        receiverId:
         reason:
           type: string
     inline_response_200:
