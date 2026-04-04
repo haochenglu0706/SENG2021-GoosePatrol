@@ -6,6 +6,7 @@ module.exports = {
   testMatch: ["**/*.test.ts"],
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
+    "\\.(yaml|yml)$": "<rootDir>/tests/swaggerYamlStub.ts",
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   transform: {

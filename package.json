@@ -19,7 +19,7 @@
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "build": "PATH=\"$(pwd)/node_modules/.bin:$PATH\" sam build && cp swagger.yaml .aws-sam/build/ApiFunction/swagger.yaml",
+    "build": "PATH=\"$(pwd)/node_modules/.bin:$PATH\" sam build",
     "deploy": "sam deploy"
   }
 }

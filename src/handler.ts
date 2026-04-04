@@ -1,3 +1,4 @@
+import { CORS_HEADERS } from "./cors.js";
 import { route } from "./router.js";
 
 /**
@@ -12,6 +13,7 @@ export const lambdaHandler = async (event: any, context: any) => {
 
     return {
       statusCode: 500,
+      headers: CORS_HEADERS,
       body: JSON.stringify({
         error: "InternalServerError",
         message: "Unexpected error",

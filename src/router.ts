@@ -2,10 +2,9 @@ import * as auth from "./routes/auth.js";
 import * as despatch from "./routes/despatchAdvice.js";
 import * as receipt from "./routes/receiptAdvice.js";
 import * as health from "./routes/health.js";
-import * as docs from "./routes/docs.js"
-import { readFileSync } from "fs";
-import { join } from "path";
+import * as docs from "./routes/docs.js";
 import { CORS_HEADERS } from "./cors.js";
+import openapiYaml from "../swagger.yaml";
 
 /**
  * Simple router that inspects the incoming API Gateway event
@@ -125,18 +124,21 @@ export async function route(event: any) {
     return docs.getDocs(event);
   }
 
-  if (method === "GET" && path === "/swagger.yaml") {
-    const { readFileSync } = await import("fs");
+  // REST API + stage: path may be /Prod/swagger.yaml; Lambda proxy may also use /swagger.yaml
+  const segs = path.split("/").filter(Boolean);
+  const isSwaggerYamlGet =
+    method === "GET" &&
+    ((segs.length === 1 && segs[0] === "swagger.yaml") ||
+      (segs.length === 2 && segs[1] === "swagger.yaml"));
 
-    const yaml = readFileSync("/var/task/swagger.yaml", "utf-8");
-
+  if (isSwaggerYamlGet) {
     return {
       statusCode: 200,
       headers: {
-        "Content-Type": "application/yaml",
-        "Access-Control-Allow-Origin": "*",
+        ...CORS_HEADERS,
+        "Content-Type": "text/yaml; charset=utf-8",
       },
-      body: yaml,
+      body: openapiYaml,
     };
   }
 
