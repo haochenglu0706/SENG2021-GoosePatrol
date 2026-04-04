@@ -28,25 +28,68 @@ const mockVerifySession =
 /// ////////////////////// Shared fixtures /////////////////////////////////////
 /// /////////////////////////////////////////////////////////////////////////////
 
-// Minimum valid DespatchAdvice body per swagger.yaml schema:
-// required fields: documentId, senderId, receiverId, despatchSupplierParty
+// Shared nested shapes (swagger DespatchAdviceCreateRequest + referenced schemas)
+const REQ_POSTAL = {
+    streetName: "1 Warehouse Rd",
+    cityName: "Sydney",
+    postalZone: "2000",
+    countryIdentificationCode: "AU",
+};
+
+const REQ_ORDER_REF = { id: "ORD-001" };
+
+const REQ_ORDER_LINE_REF = {
+    lineId: "1",
+    orderReference: REQ_ORDER_REF,
+};
+
+const REQ_ITEM = {
+    name: "Widget",
+    description: "A standard widget",
+};
+
+const REQ_DELIVERY_PERIOD = {
+    startDate: "2025-06-01",
+    endDate: "2025-06-30",
+};
+
+const REQ_DELIVERY = {
+    deliveryAddress: REQ_POSTAL,
+    requestedDeliveryPeriod: REQ_DELIVERY_PERIOD,
+};
+
+const REQ_SHIPMENT = {
+    id: "SHIP-001",
+    consignmentId: "CONS-001",
+    delivery: REQ_DELIVERY,
+};
+
+const REQ_DESPATCH_LINE = {
+    id: "LINE-1",
+    deliveredQuantity: 10,
+    deliveredQuantityUnitCode: "EA",
+    orderLineReference: REQ_ORDER_LINE_REF,
+    item: REQ_ITEM,
+};
+
+// Minimum valid body per swagger.yaml DespatchAdviceCreateRequest (required fields)
 const VALID_DESPATCH_ADVICE = {
     documentId: "DA-001",
     senderId: "sender-123",
     receiverId: "receiver-456",
+    copyIndicator: false,
+    issueDate: "2025-06-01",
+    documentStatusCode: "active",
+    orderReference: REQ_ORDER_REF,
     despatchSupplierParty: {
         customerAssignedAccountId: "account-123",
         party: {
             name: "Acme Supplies",
             postalAddress: {
-                streetName: "1 Warehouse Rd",
+                ...REQ_POSTAL,
                 buildingName: "Acme HQ",
                 buildingNumber: "1",
-                cityName: "Sydney",
-                postalZone: "2000",
-                country: "Australia",
                 addressLine: "Level 1",
-                countryIdentificationCode: "AU",
             },
             contact: {
                 name: "Jane Smith",
@@ -56,6 +99,17 @@ const VALID_DESPATCH_ADVICE = {
             },
         },
     },
+    deliveryCustomerParty: {
+        party: {
+            name: "Buyer Co",
+            postalAddress: {
+                ...REQ_POSTAL,
+                buildingName: "Buyer HQ",
+            },
+        },
+    },
+    shipment: REQ_SHIPMENT,
+    despatchLines: [REQ_DESPATCH_LINE],
 };
 
 // What DynamoDB returns when a document is found (PutItem/GetItem response)
@@ -77,7 +131,6 @@ const MOCK_DYNAMODB_ITEM = {
                             buildingNumber: { S: "1" },
                             cityName: { S: "Sydney" },
                             postalZone: { S: "2000" },
-                            country: { S: "Australia" },
                             addressLine: { S: "Level 1" },
                             countryIdentificationCode: { S: "AU" },
                         },
@@ -210,7 +263,7 @@ describe("despatchAdvice", () => {
             expect(result.statusCode).toBe(201);
         });
 
-        test("works with only required postalAddress fields", async () => {
+        test("works with only required postalAddress fields on supplier party", async () => {
             mockSend.mockResolvedValueOnce({});
 
             const bodyMinimalAddress = {
@@ -220,6 +273,17 @@ describe("despatchAdvice", () => {
                         name: "Acme Supplies",
                         postalAddress: {
                             streetName: "1 Warehouse Rd",
+                            cityName: "Sydney",
+                            postalZone: "2000",
+                            countryIdentificationCode: "AU",
+                        },
+                    },
+                },
+                deliveryCustomerParty: {
+                    party: {
+                        name: "Buyer Co",
+                        postalAddress: {
+                            streetName: "2 Buyer St",
                             cityName: "Sydney",
                             postalZone: "2000",
                             countryIdentificationCode: "AU",
@@ -286,8 +350,7 @@ describe("despatchAdvice", () => {
         });
 
         // -----------------------------------------------------------------
-        // Missing required fields — swagger schema: documentId, senderId,
-        // receiverId, despatchSupplierParty are all required
+        // Missing required fields — per swagger DespatchAdviceCreateRequest
         // -----------------------------------------------------------------
 
         describe("returns 400 when required fields are missing", () => {
@@ -296,6 +359,20 @@ describe("despatchAdvice", () => {
 
                 const result = await createDespatchAdvice(body);
 
+                expect(result.statusCode).toBe(400);
+                expect(mockSend).not.toHaveBeenCalled();
+            });
+
+            test("missing copyIndicator", async () => {
+                const { copyIndicator, ...body } = VALID_DESPATCH_ADVICE;
+                const result = await createDespatchAdvice(body);
+                expect(result.statusCode).toBe(400);
+                expect(mockSend).not.toHaveBeenCalled();
+            });
+
+            test("missing despatchLines", async () => {
+                const { despatchLines, ...body } = VALID_DESPATCH_ADVICE;
+                const result = await createDespatchAdvice(body);
                 expect(result.statusCode).toBe(400);
                 expect(mockSend).not.toHaveBeenCalled();
             });
