@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API_BASE = "https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod";
+const API_BASE = "https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod";
 
 const STEPS = ["Register", "Login", "Create Despatch", "Get Despatch", "Create Receipt", "Get Receipt", "Cancel Despatch"];
 

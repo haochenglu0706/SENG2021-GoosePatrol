@@ -1,5 +1,5 @@
 import { CORS_HEADERS } from "../cors.js";
-const BASE_URL = "https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod";
+const BASE_URL = "https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod";
 
 export async function getHealth(_event: any) {
   const html = `<!DOCTYPE html>

@@ -130,7 +130,7 @@ Next, you can use AWS Serverless Application Repository to deploy ready to use A
 
 Despatch & Order Management API built on AWS Lambda + DynamoDB.
 
-**Base URL:** `https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod`
+**Base URL:** `https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod`
 
 ---
 
@@ -150,7 +150,7 @@ Create a new account with a username and password.
 **Password requirements:** at least 8 characters, must contain at least one letter and one digit.
 
 ```bash
-curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/clients \
+curl -X POST https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod/clients \
   -H "Content-Type: application/json" \
   -d '{
     "username": "your-username",
@@ -178,7 +178,7 @@ curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/cl
 Use your username and password to obtain a `sessionId`. This is required for all despatch advice requests.
 
 ```bash
-curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/sessions \
+curl -X POST https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod/sessions \
   -H "Content-Type: application/json" \
   -d '{
     "username": "your-username",
@@ -208,7 +208,7 @@ curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/se
 Submit a new despatch advice document. Pass the `sessionId` from Step 2 as a request header.
 
 ```bash
-curl -X POST https://h49mycoe4e.execute-api.ap-southeast-2.amazonaws.com/Prod/despatch-advices \
+curl -X POST https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod/despatch-advices \
   -H "Content-Type: application/json" \
   -H "sessionId: 1b8b79d9-cb5f-44ea-9fb0-4cf5d9642a12" \
   -d '{
