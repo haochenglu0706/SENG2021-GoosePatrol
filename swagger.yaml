@@ -4,7 +4,7 @@ info:
   description: API for managing clients, sessions, despatch advices, order changes, order cancellations, and fulfilment cancellations.
   version: 1.0.0
 servers:
-  - url: https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod/
+  - url: https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod
 tags:
   - name: Auth
     description: Client registration and session management
@@ -18,11 +18,12 @@ tags:
   - name: Health
     description: Health check endpoint
     x-subtitle: version1
+
 paths:
+
   /clients:
     post:
-      tags:
-        - Auth
+      tags: [Auth]
       summary: Register a new client
       x-subtitle: version1
       requestBody:
@@ -31,10 +32,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - username
-                - password
-                - email
+              required: [username, password, email]
               properties:
                 username:
                   type: string
@@ -58,13 +56,13 @@ paths:
                   value:
                     clientId: "c12345"
                     username: johndoe
-                    password: "StrongPassw0rd!"
+                    email: johndoe@example.com
         '400':
           $ref: '#/components/responses/BadRequest'
+
   /sessions:
     post:
-      tags:
-        - Auth
+      tags: [Auth]
       summary: Create a new session (login)
       x-subtitle: version1
       requestBody:
@@ -73,10 +71,7 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - username
-                - password
-                - email
+              required: [username, password]
               properties:
                 username:
                   type: string
@@ -85,9 +80,6 @@ paths:
                   type: string
                   format: password
                   example: StrongPassw0rd!
-                email:
-                  type: string
-                  example: johndoe@example.com
       responses:
         '201':
           description: Session created
@@ -102,10 +94,10 @@ paths:
                     clientId: "c12345"
         '401':
           $ref: '#/components/responses/Unauthorized'
+
   /sessions/{sessionId}:
     delete:
-      tags:
-        - Auth
+      tags: [Auth]
       summary: Delete a session (logout)
       x-subtitle: version1
       parameters:
@@ -115,10 +107,10 @@ paths:
           description: Session deleted
         '404':
           $ref: '#/components/responses/NotFound'
+
   /despatch-advices:
     get:
-      tags:
-        - DespatchAdvice
+      tags: [DespatchAdvice]
       summary: List all despatch advices
       x-subtitle: version1
       parameters:
@@ -132,37 +124,9 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DespatchAdvice'
-              examples:
-                despatchAdvicesExample:
-                  value:
-                    - uuid: "123e4567-e89b-12d3-a456-426614174000"
-                      documentID: "DA-001"
-                      senderId: "SupplierA"
-                      receiverId: "CustomerB"
-                      copyIndicator: false
-                      issueDate: "2024-05-01"
-                      documentStatusCode: "Active"
-                      orderReference:
-                        orderId: "ORD-1001"
-                        orderDate: "2024-04-30"
-                      despatchAdviceTypeCode: "delivery"
-                      note: "First despatch advice"
-                      despatchSupplierParty:
-                        partyId: "SupplierA"
-                        partyName: "Supplier A Ltd"
-                      deliveryCustomerParty:
-                        partyId: "CustomerB"
-                        partyName: "Customer B Inc"
-                      shipment:
-                        shipmentId: "SHIP-001"
-                        shipmentDate: "2024-05-02"
-                      despatchLines:
-                        - lineId: "line1"
-                          quantity: 10
-                      status: "DESPATCHED"
+
     post:
-      tags:
-        - DespatchAdvice
+      tags: [DespatchAdvice]
       summary: Create a new despatch advice
       x-subtitle: version1
       parameters:
@@ -183,22 +147,57 @@ paths:
                   issueDate: "2024-06-01"
                   documentStatusCode: "Active"
                   orderReference:
-                    orderId: "ORD-1002"
-                    orderDate: "2024-05-30"
+                    id: "ORD-1002"
                   despatchAdviceTypeCode: "delivery"
                   note: "Second despatch advice"
                   despatchSupplierParty:
-                    partyId: "SupplierA"
-                    partyName: "Supplier A Ltd"
+                    customerAssignedAccountId: "ACC-001"
+                    party:
+                      name: "Supplier A Ltd"
+                      postalAddress:
+                        streetName: "1 Warehouse Rd"
+                        buildingName: "Supplier HQ"
+                        buildingNumber: "1"
+                        cityName: "Sydney"
+                        postalZone: "2000"
+                        addressLine: "Level 1"
+                        countryIdentificationCode: "AU"
+                      contact:
+                        name: "Jane Smith"
+                        telephone: "0412345678"
+                        telefax: "0298765432"
+                        email: "jane@supplierA.com"
                   deliveryCustomerParty:
-                    partyId: "CustomerB"
-                    partyName: "Customer B Inc"
+                    party:
+                      name: "Customer B Inc"
+                      postalAddress:
+                        streetName: "2 Buyer St"
+                        cityName: "Sydney"
+                        postalZone: "2000"
+                        countryIdentificationCode: "AU"
                   shipment:
-                    shipmentId: "SHIP-002"
-                    shipmentDate: "2024-06-02"
+                    id: "SHIP-002"
+                    consignmentId: "CONS-002"
+                    delivery:
+                      deliveryAddress:
+                        streetName: "2 Buyer St"
+                        cityName: "Sydney"
+                        postalZone: "2000"
+                        countryIdentificationCode: "AU"
+                      requestedDeliveryPeriod:
+                        startDate: "2024-06-01"
+                        endDate: "2024-06-30"
                   despatchLines:
-                    - lineId: "line1"
-                      quantity: 20
+                    - id: "LINE-1"
+                      deliveredQuantity: 20
+                      deliveredQuantityUnitCode: "EA"
+                      orderLineReference:
+                        lineId: "1"
+                        orderReference:
+                          id: "ORD-1002"
+                      item:
+                        name: "Widget"
+                        description: "A standard widget"
       responses:
         '201':
           description: Despatch advice created
@@ -208,11 +207,17 @@ paths:
                 $ref: '#/components/schemas/DespatchAdvice'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          description: A despatch advice with the same documentId already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /despatch-advices/{despatchId}:
     get:
-      tags:
-        - DespatchAdvice
-      summary: Get a despatch advice by document ID
+      tags: [DespatchAdvice]
+      summary: Get a despatch advice by ID
       x-subtitle: version1
       parameters:
         - name: despatchId
@@ -220,7 +225,7 @@ paths:
           required: true
           schema:
             type: string
-          example: DA-001
+          example: "abc-123"
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -231,9 +236,9 @@ paths:
                 $ref: '#/components/schemas/DespatchAdvice'
         '404':
           $ref: '#/components/responses/NotFound'
+
     put:
-      tags:
-        - DespatchAdvice
+      tags: [DespatchAdvice]
       summary: Update a despatch advice
       x-subtitle: version1
       parameters:
@@ -242,7 +247,7 @@ paths:
           required: true
           schema:
             type: string
-          example: DA-001
+          example: "abc-123"
         - $ref: '#/components/parameters/SessionId'
       requestBody:
         required: true
@@ -250,32 +255,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/DespatchAdviceCreateRequest'
-            examples:
-              updateDespatchAdviceExample:
-                value:
-                  documentID: "DA-001"
-                  senderId: "SupplierA"
-                  receiverId: "CustomerB"
-                  copyIndicator: false
-                  issueDate: "2024-05-01"
-                  documentStatusCode: "Updated"
-                  orderReference:
-                    orderId: "ORD-1001"
-                    orderDate: "2024-04-30"
-                  despatchAdviceTypeCode: "delivery"
-                  note: "Updated despatch advice note"
-                  despatchSupplierParty:
-                    partyId: "SupplierA"
-                    partyName: "Supplier A Ltd"
-                  deliveryCustomerParty:
-                    partyId: "CustomerB"
-                    partyName: "Customer B Inc"
-                  shipment:
-                    shipmentId: "SHIP-001"
-                    shipmentDate: "2024-05-02"
-                  despatchLines:
-                    - lineId: "line1"
-                      quantity: 15
       responses:
         '200':
           description: Despatch advice updated
@@ -283,11 +262,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DespatchAdvice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
     delete:
-      tags:
-        - DespatchAdvice
+      tags: [DespatchAdvice]
       summary: Delete a despatch advice
       x-subtitle: version1
       parameters:
@@ -296,19 +279,20 @@ paths:
           required: true
           schema:
             type: string
-          example: DA-001
+          example: "abc-123"
         - $ref: '#/components/parameters/SessionId'
       responses:
         '204':
           description: Despatch advice deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-  /despatch-advices/{despatchId}/receipt-advices:
-    post:
-      tags:
-        - ReceiptAdvice
-      summary: Delivery party confirms receipt or reports discrepancies.
-      operationId: createReceiptAdvice
+
+  /despatch-advices/{despatchId}/ubl:
+    get:
+      tags: [DespatchAdvice]
+      summary: Export a despatch advice as UBL XML
       x-subtitle: version1
       parameters:
         - name: despatchId
@@ -316,60 +300,20 @@ paths:
           required: true
           schema:
             type: string
-          example: DA-001
-        - $ref: '#/components/parameters/SessionId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ReceiptAdviceCreateRequest'
-            examples:
-              receiptAdviceCreateExample:
-                value:
-                  documentID: "RA-001"
-                  senderId: "CustomerB"
-                  receiverId: "SupplierA"
-                  copyIndicator: false
-                  issueDate: "2024-06-05"
-                  documentStatusCode: "Active"
-                  orderReference:
-                    orderId: "ORD-1001"
-                    orderDate: "2024-04-30"
-                  despatchDocumentReference:
-                    documentId: "DA-001"
-                    documentType: "DespatchAdvice"
-                  deliveryCustomerParty:
-                    partyId: "CustomerB"
-                    partyName: "Customer B Inc"
-                  despatchSupplierParty:
-                    partyId: "SupplierA"
-                    partyName: "Supplier A Ltd"
-                  shipment:
-                    shipmentId: "SHIP-001"
-                    receiptDate: "2024-06-05"
-                  receiptLines:
-                    - lineId: "line1"
-                      quantityReceived: 10
+          example: "abc-123"
       responses:
         '200':
-          description: Receipt advice created successfully
+          description: UBL DespatchAdvice XML document
           content:
-            application/json:
+            application/xml:
               schema:
-                $ref: '#/components/schemas/ReceiptAdvice'
+                type: string
         '404':
-          $ref: '#/components/responses/DespatchAdviceNotFound'
-        '409':
-          description: Already fully received
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFound'
+
   /despatch-advices/{despatchId}/fulfilment-cancellation:
     post:
-      tags:
-        - DespatchAdvice
+      tags: [DespatchAdvice]
       summary: Cancel fulfilment for a despatch advice
       x-subtitle: version1
       parameters:
@@ -378,11 +322,10 @@ paths:
           required: true
           schema:
             type: string
-          example: DA-001
+          example: "abc-123"
         - $ref: '#/components/parameters/SessionId'
       requestBody:
-        description: Fulfilment cancellation request body
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -399,16 +342,104 @@ paths:
               schema:
                 type: object
                 properties:
-                  message:
+                  status:
                     type: string
-                    example: "Fulfilment cancelled successfully"
+                    example: "FULFILMENT_CANCELLED"
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already received or already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /despatch-advices/{despatchId}/receipt-advices:
+    post:
+      tags: [ReceiptAdvice]
+      summary: Delivery party confirms receipt or reports discrepancies
+      operationId: createReceiptAdvice
+      x-subtitle: version1
+      parameters:
+        - name: despatchId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "abc-123"
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptAdviceCreateRequest'
+            examples:
+              receiptAdviceCreateExample:
+                value:
+                  documentID: "RA-001"
+                  senderId: "CustomerB"
+                  receiverId: "SupplierA"
+                  copyIndicator: false
+                  issueDate: "2024-06-05"
+                  documentStatusCode: "RECEIVED"
+                  orderReference:
+                    id: "ORD-1001"
+                  despatchDocumentReference:
+                    id: "DA-001"
+                  despatchSupplierParty:
+                    party:
+                      name: "Supplier A Ltd"
+                      postalAddress:
+                        streetName: "1 Warehouse Rd"
+                        cityName: "Sydney"
+                        postalZone: "2000"
+                        countryIdentificationCode: "AU"
+                  deliveryCustomerParty:
+                    party:
+                      name: "Customer B Inc"
+                      postalAddress:
+                        streetName: "2 Buyer St"
+                        cityName: "Sydney"
+                        postalZone: "2000"
+                        countryIdentificationCode: "AU"
+                  shipment:
+                    id: "SHIP-001"
+                    consignmentId: "CONS-001"
+                    delivery: {}
+                  receiptLines:
+                    - id: "LINE-1"
+                      receivedQuantity: 10
+                      receivedQuantityUnitCode: "EA"
+                      item:
+                        name: "Widget"
+                        description: "A standard widget"
+      responses:
+        '200':
+          description: Receipt advice created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  receiptAdviceId:
+                    type: string
+                    format: uuid
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already fully received
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /receipt-advices/{receiptAdviceId}:
     get:
-      tags:
-        - ReceiptAdvice
-      summary: Obtain the Receipt Advice document.
+      tags: [ReceiptAdvice]
+      summary: Obtain the Receipt Advice document
       operationId: getReceiptAdviceById
       x-subtitle: version1
       parameters:
@@ -417,7 +448,7 @@ paths:
           required: true
           schema:
             type: string
-          example: RA-001
+          example: "abc-123"
         - $ref: '#/components/parameters/SessionId'
       responses:
         '200':
@@ -427,50 +458,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReceiptAdvice'
         '404':
-          $ref: '#/components/responses/ReceiptAdviceNotFound'
-  /health:
-    get:
-      tags:
-        - Health
-      summary: Health check endpoint
-      x-subtitle: version1
-      responses:
-        '200':
-          description: Service is healthy
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Already fully received
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: healthy
-  /despatch-advices/{despatchId}/ubl:
-    get:
-      tags:
-        - DespatchAdvice
-      summary: Export a despatch advice as UBL XML
-      x-subtitle: version1
-      parameters:
-        - name: despatchId
-          in: path
-          required: true
-          schema:
-            type: string
-          example: DA-001
-      responses:
-        '200':
-          description: UBL DespatchAdvice XML document
-          content:
-            application/xml:
-              schema:
-                type: string
-        '404':
-          $ref: '#/components/responses/DespatchAdviceNotFound'
+                $ref: '#/components/schemas/ErrorResponse'
+
   /receipt-advices/{receiptAdviceId}/ubl:
     get:
-      tags:
-        - ReceiptAdvice
+      tags: [ReceiptAdvice]
       summary: Export a receipt advice as UBL XML
       x-subtitle: version1
       parameters:
@@ -479,7 +477,7 @@ paths:
           required: true
           schema:
             type: string
-          example: RA-001
+          example: "abc-123"
       responses:
         '200':
           description: UBL ReceiptAdvice XML document
@@ -488,43 +486,31 @@ paths:
               schema:
                 type: string
         '404':
-          $ref: '#/components/responses/ReceiptAdviceNotFound'
-  /despatch-advices/{despatchId}/fulfilment-cancellation/ubl:
+          $ref: '#/components/responses/NotFound'
+
+  /health:
     get:
-      tags:
-        - DespatchAdvice
-      summary: Export fulfilment cancellation as UBL XML
+      tags: [Health]
+      summary: Health check endpoint
       x-subtitle: version1
-      parameters:
-        - name: despatchId
-          in: path
-          required: true
-          schema:
-            type: string
-          example: DA-001
       responses:
         '200':
-          description: UBL FulfilmentCancellation XML document
+          description: Service is healthy
           content:
-            application/xml:
+            text/html:
               schema:
                 type: string
-        '404':
-          $ref: '#/components/responses/NotFound'
+
 components:
+
   parameters:
-    ClientId:
-      name: clientId
-      in: path
-      required: true
-      schema:
-        type: string
     SessionId:
       name: sessionId
       in: header
       required: true
       schema:
         type: string
+      example: "1b8b79d9-cb5f-44ea-9fb0-4cf5d9642a12"
     SessionIdPath:
       name: sessionId
       in: path
@@ -537,28 +523,26 @@ components:
       required: true
       schema:
         type: string
+    ClientId:
+      name: clientId
+      in: path
+      required: true
+      schema:
+        type: string
+
   schemas:
+
     ErrorResponse:
-      required:
-        - error
-        - message
       type: object
+      required: [error, message]
       properties:
         error:
           type: string
+          example: "BadRequest"
         message:
           type: string
-    ClientRequest:
-      type: object
-      required:
-        - username
-        - password
-      properties:
-        username:
-          type: string
-        password:
-          type: string
-          format: password
+          example: "Invalid request parameters"
+
     Client:
       type: object
       properties:
@@ -566,9 +550,9 @@ components:
           type: string
         username:
           type: string
-        password:
+        email:
           type: string
-          format: password
+
     Session:
       type: object
       properties:
@@ -576,82 +560,280 @@ components:
           type: string
         clientId:
           type: string
-    DespatchLine:
+
+    PostalAddress:
+      type: object
+      required:
+        - streetName
+        - cityName
+        - postalZone
+        - countryIdentificationCode
+      properties:
+        streetName:
+          type: string
+          example: "1 Warehouse Rd"
+        buildingName:
+          type: string
+          example: "Supplier HQ"
+        buildingNumber:
+          type: string
+          example: "1"
+        cityName:
+          type: string
+          example: "Sydney"
+        postalZone:
+          type: string
+          example: "2000"
+        countrySubentity:
+          type: string
+          example: "NSW"
+        addressLine:
+          type: string
+          example: "Level 1"
+        countryIdentificationCode:
+          type: string
+          minLength: 2
+          maxLength: 2
+          example: "AU"
+
+    Contact:
       type: object
       properties:
-        lineId:
+        name:
           type: string
-        quantity:
-          type: integer
-    DeliveryCustomerParty:
+          example: "Jane Smith"
+        telephone:
+          type: string
+          example: "0412345678"
+        telefax:
+          type: string
+          example: "0298765432"
+        email:
+          type: string
+          format: email
+          example: "jane@supplierA.com"
+
+    Party:
       type: object
+      required: [name, postalAddress]
       properties:
-        partyId:
+        name:
           type: string
-        partyName:
-          type: string
+          example: "Supplier A Ltd"
+        postalAddress:
+          $ref: '#/components/schemas/PostalAddress'
+        contact:
+          $ref: '#/components/schemas/Contact'
+
     DespatchSupplierParty:
       type: object
+      required: [party]
       properties:
-        partyId:
+        customerAssignedAccountId:
           type: string
-        partyName:
-          type: string
-    Shipment:
+          example: "ACC-001"
+        party:
+          $ref: '#/components/schemas/Party'
+
+    DeliveryCustomerParty:
       type: object
+      required: [party]
       properties:
-        shipmentId:
+        customerAssignedAccountId:
           type: string
-        shipmentDate:
+        supplierAssignedAccountId:
           type: string
-          format: date
+        party:
+          $ref: '#/components/schemas/Party'
+
     OrderReference:
       type: object
+      required: [id]
       properties:
-        orderId:
+        id:
           type: string
-        orderDate:
+          example: "ORD-1002"
+        salesOrderId:
           type: string
-          format: date
-    DespatchAdviceCreateRequest:
-      required:
-        - copyIndicator
-        - deliveryCustomerParty
-        - despatchLines
-        - despatchSupplierParty
-        - documentID
-        - documentStatusCode
-        - issueDate
-        - orderReference
-        - receiverId
-        - senderId
-        - shipment
-      type: object
-      properties:
         uuid:
           type: string
           format: uuid
-          readOnly: true
+        issueDate:
+          type: string
+          format: date
+
+    OrderLineReference:
+      type: object
+      required: [lineId, orderReference]
+      properties:
+        lineId:
+          type: string
+          example: "1"
+        salesOrderLineId:
+          type: string
+        orderReference:
+          $ref: '#/components/schemas/OrderReference'
+
+    ItemIdentification:
+      type: object
+      properties:
+        id:
+          type: string
+
+    LotIdentification:
+      type: object
+      properties:
+        lotNumberId:
+          type: string
+        expiryDate:
+          type: string
+          format: date
+
+    ItemInstance:
+      type: object
+      properties:
+        lotIdentification:
+          $ref: '#/components/schemas/LotIdentification'
+
+    Item:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+          example: "Widget"
+        description:
+          type: string
+          example: "A standard widget"
+        buyersItemIdentification:
+          $ref: '#/components/schemas/ItemIdentification'
+        sellersItemIdentification:
+          $ref: '#/components/schemas/ItemIdentification'
+        itemInstance:
+          $ref: '#/components/schemas/ItemInstance'
+
+    DespatchLine:
+      type: object
+      required: [id, deliveredQuantity, deliveredQuantityUnitCode, orderLineReference, item]
+      properties:
+        id:
+          type: string
+          example: "LINE-1"
+        note:
+          type: string
+        lineStatusCode:
+          type: string
+        deliveredQuantity:
+          type: number
+          example: 20
+        deliveredQuantityUnitCode:
+          type: string
+          example: "EA"
+        backorderQuantity:
+          type: number
+        backorderQuantityUnitCode:
+          type: string
+        backorderReason:
+          type: string
+        orderLineReference:
+          $ref: '#/components/schemas/OrderLineReference'
+        item:
+          $ref: '#/components/schemas/Item'
+
+    DeliveryPeriod:
+      type: object
+      required: [startDate, endDate]
+      properties:
+        startDate:
+          type: string
+          format: date
+          example: "2024-06-01"
+        startTime:
+          type: string
+          example: "09:00:00"
+        endDate:
+          type: string
+          format: date
+          example: "2024-06-30"
+        endTime:
+          type: string
+          example: "17:00:00"
+
+    Delivery:
+      type: object
+      required: [deliveryAddress, requestedDeliveryPeriod]
+      properties:
+        id:
+          type: string
+        deliveryAddress:
+          $ref: '#/components/schemas/PostalAddress'
+        requestedDeliveryPeriod:
+          $ref: '#/components/schemas/DeliveryPeriod'
+
+    Shipment:
+      type: object
+      required: [id, consignmentId, delivery]
+      properties:
+        id:
+          type: string
+          example: "SHIP-002"
+        consignmentId:
+          type: string
+          example: "CONS-002"
+        delivery:
+          $ref: '#/components/schemas/Delivery'
+
+    AdditionalDocumentReference:
+      type: object
+      required: [id, documentType]
+      properties:
+        id:
+          type: string
+        documentType:
+          type: string
+
+    DespatchAdviceCreateRequest:
+      type: object
+      required:
+        - documentID
+        - senderId
+        - receiverId
+        - copyIndicator
+        - issueDate
+        - documentStatusCode
+        - orderReference
+        - despatchSupplierParty
+        - deliveryCustomerParty
+        - shipment
+        - despatchLines
+      properties:
         documentID:
           type: string
+          example: "DA-002"
         senderId:
           type: string
+          example: "SupplierA"
         receiverId:
           type: string
+          example: "CustomerB"
         copyIndicator:
           type: boolean
+          example: false
         replaces:
           type: string
         issueDate:
           type: string
           format: date
+          example: "2024-06-01"
         documentStatusCode:
           type: string
+          example: "Active"
         orderReference:
           $ref: '#/components/schemas/OrderReference'
         despatchAdviceTypeCode:
           type: string
-          default: delivery
+          default: "delivery"
+          example: "delivery"
         note:
           type: string
         despatchSupplierParty:
@@ -665,105 +847,162 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/DespatchLine'
+        additionalDocumentReference:
+          oneOf:
+            - $ref: '#/components/schemas/AdditionalDocumentReference'
+            - type: array
+              items:
+                $ref: '#/components/schemas/AdditionalDocumentReference'
+
     DespatchAdvice:
       allOf:
         - $ref: '#/components/schemas/DespatchAdviceCreateRequest'
         - type: object
-          required:
-            - status
-            - uuid
+          required: [despatchAdviceId, status]
           properties:
-            uuid:
+            despatchAdviceId:
               type: string
               format: uuid
+              example: "f3a2b1c4-1234-4abc-8def-000000000001"
             status:
               type: string
-              enum:
-                - DESPATCHED
-                - RECEIVED
-                - FULFILMENT_CANCELLED
-    ReceiptLine:
-      type: object
-      properties:
-        lineId:
-          type: string
-        quantityReceived:
-          type: integer
+              enum: [draft, DESPATCHED, RECEIVED, FULFILMENT_CANCELLED]
+              example: "draft"
+
     DocumentReference:
       type: object
+      required: [id]
       properties:
-        documentId:
+        id:
           type: string
-        documentType:
-          type: string
-    ReceiptAdviceShipment:
-      type: object
-      properties:
-        shipmentId:
-          type: string
-        receiptDate:
-          type: string
-          format: date
-    ReceiptAdviceCreateRequest:
-      required:
-        - copyIndicator
-        - deliveryCustomerParty
-        - despatchSupplierParty
-        - documentID
-        - documentStatusCode
-        - orderReference
-        - receiptLines
-        - receiverId
-        - senderId
-        - shipment
-      type: object
-      properties:
+          example: "DA-001"
         uuid:
           type: string
           format: uuid
-          readOnly: true
+        issueDate:
+          type: string
+          format: date
+
+    ReceiptLine:
+      type: object
+      required: [id, receivedQuantity, receivedQuantityUnitCode, item]
+      properties:
+        id:
+          type: string
+          example: "LINE-1"
+        note:
+          type: string
+        receivedQuantity:
+          type: number
+          example: 10
+        receivedQuantityUnitCode:
+          type: string
+          example: "EA"
+        shortQuantity:
+          type: number
+          example: 2
+        shortQuantityUnitCode:
+          type: string
+          example: "EA"
+        item:
+          $ref: '#/components/schemas/Item'
+
+    ReceiptDelivery:
+      type: object
+      properties:
+        id:
+          type: string
+        quantity:
+          type: number
+        quantityUnitCode:
+          type: string
+        actualDeliveryDate:
+          type: string
+          format: date
+        actualDeliveryTime:
+          type: string
+        requestedDeliveryPeriod:
+          $ref: '#/components/schemas/DeliveryPeriod'
+
+    ReceiptShipment:
+      type: object
+      required: [id, consignmentId]
+      properties:
+        id:
+          type: string
+          example: "SHIP-001"
+        consignmentId:
+          type: string
+          example: "CONS-001"
+        delivery:
+          $ref: '#/components/schemas/ReceiptDelivery'
+
+    ReceiptAdviceCreateRequest:
+      type: object
+      required:
+        - documentID
+        - senderId
+        - receiverId
+        - copyIndicator
+        - documentStatusCode
+        - orderReference
+        - despatchSupplierParty
+        - deliveryCustomerParty
+        - shipment
+        - receiptLines
+      properties:
         documentID:
           type: string
+          example: "RA-001"
         senderId:
           type: string
+          example: "CustomerB"
         receiverId:
           type: string
+          example: "SupplierA"
         copyIndicator:
           type: boolean
+          example: false
         replaces:
           type: string
         issueDate:
           type: string
           format: date
+          example: "2024-06-05"
         documentStatusCode:
           type: string
+          example: "RECEIVED"
         note:
           type: string
         orderReference:
           $ref: '#/components/schemas/OrderReference'
         despatchDocumentReference:
           $ref: '#/components/schemas/DocumentReference'
-        deliveryCustomerParty:
-          $ref: '#/components/schemas/DeliveryCustomerParty'
         despatchSupplierParty:
           $ref: '#/components/schemas/DespatchSupplierParty'
+        deliveryCustomerParty:
+          $ref: '#/components/schemas/DeliveryCustomerParty'
         shipment:
-          $ref: '#/components/schemas/ReceiptAdviceShipment'
+          $ref: '#/components/schemas/ReceiptShipment'
         receiptLines:
           type: array
           minItems: 1
           items:
             $ref: '#/components/schemas/ReceiptLine'
+
     ReceiptAdvice:
       allOf:
         - $ref: '#/components/schemas/ReceiptAdviceCreateRequest'
         - type: object
-          required:
-            - uuid
+          required: [receiptAdviceId]
           properties:
-            uuid:
+            receiptAdviceId:
               type: string
               format: uuid
+            despatchAdviceId:
+              type: string
+              format: uuid
+
   responses:
     BadRequest:
       description: Bad Request
@@ -787,28 +1026,6 @@ components:
               value:
                 error: "Unauthorized"
                 message: "Invalid username or password"
-    DespatchAdviceNotFound:
-      description: Despatch Advice not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            despatchNotFoundExample:
-              value:
-                error: "NotFound"
-                message: "Despatch Advice with given ID not found"
-    ReceiptAdviceNotFound:
-      description: Receipt Advice not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            receiptNotFoundExample:
-              value:
-                error: "NotFound"
-                message: "Receipt Advice with given ID not found"
     NotFound:
       description: Resource not found
       content:
