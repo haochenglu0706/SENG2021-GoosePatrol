@@ -4,7 +4,7 @@ info:
   description: API for managing clients, sessions, despatch advices, order changes, order cancellations, and fulfilment cancellations.
   version: 1.0.0
 servers:
-  - url: https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod/health
+  - url: https://e6kttv9em1.execute-api.ap-southeast-2.amazonaws.com/Prod/
 tags:
   - name: Auth
     description: Client registration and session management
