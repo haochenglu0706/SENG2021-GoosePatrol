@@ -170,8 +170,12 @@ export default function App() {
       body: JSON.stringify({
         receiptLines: [
           {
-            id: receiptLineId || "LINE-001",
+            id: receiptLineId || "LINE-1",
             receivedQuantity: Number(receivedQuantity),
+            item: {
+              name: "Widget",
+              description: "A standard widget",
+            },
           },
         ],
       }),
