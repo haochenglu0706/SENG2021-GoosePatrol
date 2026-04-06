@@ -97,17 +97,15 @@ export async function login(event: any) {
     };
   }
   // Validate email if provided
-  if (email !== undefined) {
-    if (typeof email !== "string" || isEmailInvalid(email)) {
-      return {
-        statusCode: 400,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-          error: "BadRequest",
-          message: "Invalid email address — must contain @",
-        }),
-      };
-    }
+  if (typeof username !== "string" || typeof password !== "string" || typeof email !== "string") {
+    return {
+      statusCode: 401,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        error: "Unauthorized",
+        message: "username, email and password are required",
+      }),
+    };
   }
 
   const queryResult = await dynamo.send(
@@ -141,14 +139,17 @@ export async function login(event: any) {
       }),
     };
   }
-  const { passwordHash, clientId } = unmarshall(clientItem) as {
+  const { passwordHash, clientId, email: storedEmail } = unmarshall(clientItem) as {
     passwordHash?: string;
     clientId?: string;
+    email?: string;
   };
 
   if (
     typeof passwordHash !== "string" ||
     typeof clientId !== "string" ||
+    typeof storedEmail !== "string" ||
+    email.trim().toLowerCase() !== storedEmail.trim().toLowerCase() ||
     !verifyPassword(password, passwordHash)
   ) {
     return {
