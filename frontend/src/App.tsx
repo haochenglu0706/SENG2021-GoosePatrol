@@ -131,6 +131,12 @@ export default function App() {
         documentId: despatch.documentId,
         senderId: despatch.senderId,
         receiverId: despatch.receiverId,
+        copyIndicator: false,
+        issueDate: new Date().toISOString().split("T")[0], //gives YYYY-MM-DD format
+        documentStatusCode: "Active",
+        orderReference: {
+        id: "ORD-001",
+        },
         despatchSupplierParty: {
           customerAssignedAccountId: "account-123",
           party: {
@@ -149,6 +155,50 @@ export default function App() {
             },
           },
         },
+        deliveryCustomerParty: {
+          party: {
+            name: "Customer B Inc",
+            postalAddress: {
+              streetName: "2 Buyer St",
+              cityName: "Sydney",
+              postalZone: "2000",
+              countryIdentificationCode: "AU",
+            },
+          },
+        },
+        shipment: {
+          id: "SHIP-001",
+          consignmentId: "CONS-001",
+          delivery: {
+            deliveryAddress: {
+              streetName: "2 Buyer St",
+              cityName: "Sydney",
+              postalZone: "2000",
+              countryIdentificationCode: "AU",
+            },
+            requestedDeliveryPeriod: {
+              startDate: new Date().toISOString().split("T")[0],
+              endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            },
+          },
+        },
+        despatchLines: [
+          {
+            id: "LINE-1",
+            deliveredQuantity: 20,
+            deliveredQuantityUnitCode: "EA",
+            orderLineReference: {
+              lineId: "1",
+              orderReference: {
+                id: "ORDER-001",
+              },
+            },
+            item: {
+              name: "Widget",
+              description: "A standard widget",
+            },
+          },
+        ],
       }),
     });
     if (data && (data as { despatchAdviceId?: string }).despatchAdviceId) {
