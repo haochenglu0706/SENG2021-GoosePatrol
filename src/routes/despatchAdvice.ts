@@ -147,6 +147,8 @@ interface DespatchAdvice {
     documentId: string;
     senderId: string;
     receiverId: string;
+    /** Set from session on create — used for delete/update auth (distinct from payload senderId). */
+    clientId?: string;
     copyIndicator?: boolean;
     replaces?: string;
     issueDate?: string;
@@ -186,6 +188,32 @@ function internalError(err: any) {
   return { statusCode: 500, headers: CORS_HEADERS, body: JSON.stringify(
     { error: "InternalServerError", message: err?.message ?? "Internal server error" }
  ) };
+}
+
+/** Session header on API Gateway events (and tests may omit). */
+function getSessionIdFromEvent(event: any): string | undefined {
+    if (!event || typeof event !== "object") return undefined;
+    const h = event.headers;
+    if (!h || typeof h !== "object") return undefined;
+    const raw =
+        (h as Record<string, unknown>).sessionId ??
+        (h as Record<string, unknown>).SessionId ??
+        (h as Record<string, unknown>).sessionid ??
+        (h as Record<string, unknown>)["session-id"];
+    return typeof raw === "string" ? raw : undefined;
+}
+
+/**
+ * `senderId` is a document field (trading partner id) and often differs from the
+ * logged-in user's `clientId`. Authorise if either matches the session client.
+ */
+function sessionMayModifyDespatchAdvice(
+    existing: { senderId?: string; clientId?: string },
+    sessionClientId: string
+): boolean {
+    if (existing.clientId != null && existing.clientId === sessionClientId) return true;
+    if (existing.senderId != null && existing.senderId === sessionClientId) return true;
+    return false;
 }
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Body parsing /////////////////////////////////////////
@@ -662,6 +690,11 @@ export async function createDespatchAdvice(event: any) {
 
     const item = sanitiseDespatchAdvice(body);
 
+    const ownerClientId = await verifySession(getSessionIdFromEvent(event));
+    if (ownerClientId) {
+        item.clientId = ownerClientId;
+    }
+
     try {
         await dynamo.send(
             new PutItemCommand({
@@ -1109,8 +1142,7 @@ export async function updateDespatchAdvice(
             };
         }
 
-        // optional: simple ownership check — only allow sender to update
-        if (existing.senderId && existing.senderId !== clientId) {
+        if (!sessionMayModifyDespatchAdvice(existing as { senderId?: string; clientId?: string }, clientId)) {
             return {
                 statusCode: 401,
                 body: JSON.stringify({
@@ -1127,6 +1159,9 @@ export async function updateDespatchAdvice(
         updated.despatchAdviceId = existing.despatchAdviceId;
         if (existing.status !== undefined) {
             updated.status = existing.status;
+        }
+        if (existing.clientId !== undefined) {
+            updated.clientId = existing.clientId;
         }
 
         await dynamo.send(
@@ -1182,8 +1217,7 @@ export async function deleteDespatchAdvice(
             };
         }
 
-        // optional: only allow sender to delete
-        if (existing.senderId && existing.senderId !== clientId) {
+        if (!sessionMayModifyDespatchAdvice(existing as { senderId?: string; clientId?: string }, clientId)) {
             return {
                 statusCode: 401,
                 body: JSON.stringify({
