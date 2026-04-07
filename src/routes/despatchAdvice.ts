@@ -1024,7 +1024,7 @@ function buildUblXml(doc: DespatchAdvice): string {
  * Scan with FilterExpression must not use Limit: 1 — DynamoDB applies the filter after
  * reading at most Limit items, so a match on a later row would never be seen.
  */
-async function findDespatchAdviceByDocumentId(documentId: string): Promise<Record<string, unknown> | null> {
+export async function findDespatchAdviceByDocumentId(documentId: string): Promise<Record<string, unknown> | null> {
     let exclusiveStartKey: Record<string, AttributeValue> | undefined;
     do {
         const result = await dynamo.send(
