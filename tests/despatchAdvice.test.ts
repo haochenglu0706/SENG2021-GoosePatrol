@@ -608,7 +608,10 @@ describe("despatchAdvice", () => {
         // -----------------------------------------------------------------
  
         test("returns 404 when despatch advice does not exist", async () => {
-            mockSend.mockResolvedValueOnce({ Item: undefined });
+            // getDespatchAdvice now falls back to scanning by documentId
+            mockSend
+                .mockResolvedValueOnce({ Item: undefined }) // GetItem by despatchAdviceId
+                .mockResolvedValueOnce({ Items: [] });      // Scan by documentId
  
             const result = await getDespatchAdvice({
                 pathParameters: { despatchId: "nonexistent-id" },
@@ -618,7 +621,9 @@ describe("despatchAdvice", () => {
         });
  
         test("returns 404 response body with error message", async () => {
-            mockSend.mockResolvedValueOnce({ Item: undefined });
+            mockSend
+                .mockResolvedValueOnce({ Item: undefined })
+                .mockResolvedValueOnce({ Items: [] });
  
             const result = await getDespatchAdvice({
                 pathParameters: { despatchId: "nonexistent-id" },

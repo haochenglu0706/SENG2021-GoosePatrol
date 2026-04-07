@@ -1059,17 +1059,34 @@ export async function exportDespatchAdviceAsUblXml(despatchAdviceId: string) {
         return badRequest("Despatch advice id is required");
     }
     try {
-        const result = await dynamo.send(
+        // 1. Try by primary key (despatchAdviceId)
+        const byKey = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
                 Key: marshall({ despatchAdviceId }),
             })
         );
-        if (!result.Item) {
+
+        if (byKey.Item) {
+            const doc = unmarshall(byKey.Item) as DespatchAdvice;
+            const xml = buildUblXml(doc);
+            return {
+                statusCode: 200,
+                headers: {
+                    ...CORS_HEADERS,
+                    "Content-Type": "application/xml; charset=utf-8",
+                },
+                body: xml,
+            };
+        }
+
+        // 2. Fallback: treat path segment as documentId
+        const byDocumentId = await findDespatchAdviceByDocumentId(despatchAdviceId);
+        if (!byDocumentId) {
             return notFound(`Despatch advice not found: ${despatchAdviceId}`);
         }
-        const doc = unmarshall(result.Item) as DespatchAdvice;
-        const xml = buildUblXml(doc);
+
+        const xml = buildUblXml(byDocumentId as unknown as DespatchAdvice);
         return {
             statusCode: 200,
             headers: {
