@@ -1,4 +1,11 @@
-import { PutItemCommand, GetItemCommand, ScanCommand, DeleteItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+    PutItemCommand,
+    GetItemCommand,
+    ScanCommand,
+    DeleteItemCommand,
+    UpdateItemCommand,
+    type AttributeValue,
+} from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
@@ -979,6 +986,30 @@ function buildUblXml(doc: DespatchAdvice): string {
  * GET /despatch-advices/{despatchAdviceId}/ubl
  * Serialises a stored despatch advice to UBL DespatchAdvice XML (2.1-style metadata and OASIS 2.x namespaces).
  */
+/**
+ * Table key is despatchAdviceId; documentId is a plain attribute (no GSI in app code).
+ * Scan with FilterExpression must not use Limit: 1 — DynamoDB applies the filter after
+ * reading at most Limit items, so a match on a later row would never be seen.
+ */
+async function findDespatchAdviceByDocumentId(documentId: string): Promise<Record<string, unknown> | null> {
+    let exclusiveStartKey: Record<string, AttributeValue> | undefined;
+    do {
+        const result = await dynamo.send(
+            new ScanCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                FilterExpression: "documentId = :d",
+                ExpressionAttributeValues: marshall({ ":d": documentId }),
+                ExclusiveStartKey: exclusiveStartKey,
+            })
+        );
+        if (result.Items && result.Items.length > 0) {
+            return unmarshall(result.Items[0]) as Record<string, unknown>;
+        }
+        exclusiveStartKey = result.LastEvaluatedKey;
+    } while (exclusiveStartKey);
+    return null;
+}
+
 export async function exportDespatchAdviceAsUblXml(despatchAdviceId: string) {
     if (!despatchAdviceId?.trim()) {
         return badRequest("Despatch advice id is required");
@@ -1066,17 +1097,9 @@ export async function updateDespatchAdvice(
     }
 
     try {
-        // look up existing item by documentId
-        const scanResult = await dynamo.send(
-            new ScanCommand({
-                TableName: DESPATCH_ADVICES_TABLE,
-                FilterExpression: "documentId = :d",
-                ExpressionAttributeValues: marshall({ ":d": documentId }),
-                Limit: 1,
-            })
-        );
+        const existing = await findDespatchAdviceByDocumentId(documentId);
 
-        if (!scanResult.Items || scanResult.Items.length === 0) {
+        if (!existing) {
             return {
                 statusCode: 404,
                 body: JSON.stringify({
@@ -1086,10 +1109,8 @@ export async function updateDespatchAdvice(
             };
         }
 
-        const existing = unmarshall(scanResult.Items[0]) as any;
-
         // optional: simple ownership check — only allow sender to update
-        if (existing.senderId && existing.senderId !== body.senderId) {
+        if (existing.senderId && existing.senderId !== clientId) {
             return {
                 statusCode: 401,
                 body: JSON.stringify({
@@ -1149,17 +1170,9 @@ export async function deleteDespatchAdvice(
     }
 
     try {
-        // find the item by documentId
-        const scanResult = await dynamo.send(
-            new ScanCommand({
-                TableName: DESPATCH_ADVICES_TABLE,
-                FilterExpression: "documentID = :d",
-                ExpressionAttributeValues: marshall({ ":d": documentId }),
-                Limit: 1,
-            })
-        );
+        const existing = await findDespatchAdviceByDocumentId(documentId);
 
-        if (!scanResult.Items || scanResult.Items.length === 0) {
+        if (!existing) {
             return {
                 statusCode: 404,
                 body: JSON.stringify({
@@ -1168,8 +1181,6 @@ export async function deleteDespatchAdvice(
                 }),
             };
         }
-
-        const existing = unmarshall(scanResult.Items[0]) as any;
 
         // optional: only allow sender to delete
         if (existing.senderId && existing.senderId !== clientId) {
