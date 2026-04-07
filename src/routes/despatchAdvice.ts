@@ -745,16 +745,27 @@ export async function getDespatchAdvice(event: any) {
     const despatchId = event?.pathParameters?.despatchId;
 
     try {
-        const result = await dynamo.send(
+        // 1. Try by primary key (despatchAdviceId)
+        const byKey = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
                 Key: marshall({ despatchAdviceId: despatchId }),
             })
         );
 
-        if (!result.Item) return notFound(`Despatch advice not found: ${despatchId}`);
+        if (byKey.Item) {
+            return ok(unmarshall(byKey.Item));
+        }
 
-        return ok(unmarshall(result.Item));
+        // 2. Fallback: treat path segment as documentId
+        if (despatchId) {
+            const byDocumentId = await findDespatchAdviceByDocumentId(despatchId);
+            if (byDocumentId) {
+                return ok(byDocumentId);
+            }
+        }
+
+        return notFound(`Despatch advice not found: ${despatchId}`);
     } catch (err: any) {
         return internalError(err);
     }
