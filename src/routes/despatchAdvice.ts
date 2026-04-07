@@ -1153,7 +1153,7 @@ export async function deleteDespatchAdvice(
         const scanResult = await dynamo.send(
             new ScanCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                FilterExpression: "documentId = :d",
+                FilterExpression: "documentID = :d",
                 ExpressionAttributeValues: marshall({ ":d": documentId }),
                 Limit: 1,
             })
