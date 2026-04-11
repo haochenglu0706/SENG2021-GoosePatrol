@@ -1,0 +1,38 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 80px 40px;
+  gap: 16px;
+}
+
+.icon {
+  font-size: 56px;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.badge {
+  font-size: 10px;
+  color: var(--accent);
+  background: #f9731615;
+  border: 1px solid #f9731630;
+  border-radius: 4px;
+  padding: 4px 10px;
+  letter-spacing: 0.08em;
+}

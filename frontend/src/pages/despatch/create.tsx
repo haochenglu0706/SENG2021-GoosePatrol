@@ -1,0 +1,396 @@
+import { useState, type ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
+import { TopBar } from "../../components/layout/TopBar";
+import styles from "./style/create.module.css";
+
+export default function DespatchCreatePage() {
+  const navigate = useNavigate();
+  const { clientId, sessionId } = useAuth();
+  const today = new Date().toISOString().split("T")[0];
+  const future = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+
+  const [f, setF] = useState({
+    documentId: "",
+    receiverId: "",
+    copyIndicator: false,
+    issueDate: today,
+    documentStatusCode: "Active",
+    orderRefId: "ORD-001",
+    supplierName: "",
+    supplierStreet: "",
+    supplierCity: "",
+    supplierZone: "2000",
+    supplierCountry: "AU",
+    contactName: "",
+    contactPhone: "",
+    contactEmail: "",
+    customerName: "",
+    customerStreet: "",
+    customerCity: "",
+    customerZone: "2000",
+    customerCountry: "AU",
+    shipId: "SHIP-001",
+    consId: "CONS-001",
+    delivStreet: "",
+    delivCity: "",
+    delivZone: "2000",
+    delivCountry: "AU",
+    periodStart: today,
+    periodEnd: future,
+    lineId: "LINE-1",
+    lineQty: "10",
+    lineUnit: "EA",
+    lineOrderRef: "ORD-001",
+    lineItemName: "Widget",
+    lineItemDesc: "A standard widget",
+    note: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
+
+  const set =
+    (k: keyof typeof f) =>
+    (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setF((p) => ({ ...p, [k]: e.target.value }));
+  const setC = (k: keyof typeof f) => (e: ChangeEvent<HTMLInputElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.checked }));
+
+  const submit = async () => {
+    if (!clientId || !sessionId) return;
+    setErr("");
+    setOk("");
+    setLoading(true);
+    try {
+      const body = {
+        documentId: f.documentId,
+        senderId: clientId,
+        receiverId: f.receiverId,
+        copyIndicator: f.copyIndicator,
+        issueDate: f.issueDate,
+        documentStatusCode: f.documentStatusCode,
+        orderReference: { id: f.orderRefId },
+        note: f.note.trim() ? f.note : undefined,
+        despatchSupplierParty: {
+          party: {
+            name: f.supplierName,
+            postalAddress: {
+              streetName: f.supplierStreet,
+              cityName: f.supplierCity,
+              postalZone: f.supplierZone,
+              countryIdentificationCode: f.supplierCountry,
+            },
+            contact: {
+              name: f.contactName || undefined,
+              telephone: f.contactPhone || undefined,
+              email: f.contactEmail || undefined,
+            },
+          },
+        },
+        deliveryCustomerParty: {
+          party: {
+            name: f.customerName,
+            postalAddress: {
+              streetName: f.customerStreet,
+              cityName: f.customerCity,
+              postalZone: f.customerZone,
+              countryIdentificationCode: f.customerCountry,
+            },
+          },
+        },
+        shipment: {
+          id: f.shipId,
+          consignmentId: f.consId,
+          delivery: {
+            deliveryAddress: {
+              streetName: f.delivStreet,
+              cityName: f.delivCity,
+              postalZone: f.delivZone,
+              countryIdentificationCode: f.delivCountry,
+            },
+            requestedDeliveryPeriod: { startDate: f.periodStart, endDate: f.periodEnd },
+          },
+        },
+        despatchLines: [
+          {
+            id: f.lineId,
+            deliveredQuantity: parseFloat(f.lineQty) || 1,
+            deliveredQuantityUnitCode: f.lineUnit,
+            orderLineReference: {
+              lineId: "1",
+              orderReference: { id: f.lineOrderRef },
+            },
+            item: { name: f.lineItemName, description: f.lineItemDesc },
+          },
+        ],
+      };
+      const res = await apiFetch<{ despatchAdviceId: string }>(
+        "/despatch-advices",
+        { method: "POST", body: JSON.stringify(body) },
+        sessionId
+      );
+      setOk(`Created. Despatch advice ID: ${res.despatchAdviceId}`);
+      setTimeout(() => navigate("/app/despatch/view"), 1200);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const req = [
+    f.documentId,
+    f.receiverId,
+    f.supplierName,
+    f.supplierStreet,
+    f.supplierCity,
+    f.customerName,
+    f.customerStreet,
+    f.customerCity,
+    f.delivStreet,
+    f.delivCity,
+    f.lineItemName,
+    f.lineItemDesc,
+  ];
+  const valid = req.every((v) => v && String(v).trim());
+
+  return (
+    <>
+      <TopBar
+        title="Create despatch advice"
+        subtitle="UBL-aligned document sections"
+        right={
+          clientId ? (
+            <div className="topbar-client">
+              Sender ID <span>{clientId.slice(0, 18)}…</span>
+            </div>
+          ) : null
+        }
+      />
+      <div className={`page-body ${styles.page}`}>
+        <div className="card">
+          <div className="card-title">New despatch advice</div>
+          <div className="card-sub">Sender is fixed to your logged-in client ID.</div>
+
+          {err ? <div className="alert alert-err">{err}</div> : null}
+          {ok ? <div className="alert alert-ok">{ok}</div> : null}
+
+          <div className="section-label">Document info</div>
+          <div className="field-row">
+            <div className="field">
+              <label>Document ID *</label>
+              <input placeholder="DA-001" value={f.documentId} onChange={set("documentId")} />
+            </div>
+            <div className="field">
+              <label>Receiver ID *</label>
+              <input
+                placeholder="Receiver client UUID"
+                value={f.receiverId}
+                onChange={set("receiverId")}
+              />
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Sender ID (locked)</label>
+              <input value={clientId ?? ""} readOnly />
+            </div>
+            <div className="field">
+              <label>Issue date</label>
+              <input type="date" value={f.issueDate} onChange={set("issueDate")} />
+            </div>
+          </div>
+          <div className="field-row-3">
+            <div className="field">
+              <label>Document status code</label>
+              <input value={f.documentStatusCode} onChange={set("documentStatusCode")} />
+            </div>
+            <div className="field">
+              <label>Order reference ID</label>
+              <input value={f.orderRefId} onChange={set("orderRefId")} />
+            </div>
+            <div className="field">
+              <label>Copy indicator</label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  textTransform: "none",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  marginTop: 8,
+                }}
+              >
+                <input type="checkbox" checked={f.copyIndicator} onChange={setC("copyIndicator")} />
+                Copy
+              </label>
+            </div>
+          </div>
+          <div className="field">
+            <label>Note (optional)</label>
+            <textarea
+              placeholder="General note"
+              value={f.note}
+              onChange={set("note")}
+              style={{ minHeight: 50 }}
+            />
+          </div>
+
+          <div className="section-label">Despatch supplier party</div>
+          <div className="field-row">
+            <div className="field">
+              <label>Party name *</label>
+              <input placeholder="Acme Supplies Ltd" value={f.supplierName} onChange={set("supplierName")} />
+            </div>
+            <div className="field">
+              <label>Street *</label>
+              <input placeholder="1 Warehouse Rd" value={f.supplierStreet} onChange={set("supplierStreet")} />
+            </div>
+          </div>
+          <div className="field-row-3">
+            <div className="field">
+              <label>City *</label>
+              <input placeholder="Sydney" value={f.supplierCity} onChange={set("supplierCity")} />
+            </div>
+            <div className="field">
+              <label>Postal zone</label>
+              <input value={f.supplierZone} onChange={set("supplierZone")} />
+            </div>
+            <div className="field">
+              <label>Country (ISO)</label>
+              <input maxLength={2} value={f.supplierCountry} onChange={set("supplierCountry")} />
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Contact name</label>
+              <input value={f.contactName} onChange={set("contactName")} />
+            </div>
+            <div className="field">
+              <label>Contact phone</label>
+              <input value={f.contactPhone} onChange={set("contactPhone")} />
+            </div>
+          </div>
+          <div className="field">
+            <label>Contact email</label>
+            <input type="email" value={f.contactEmail} onChange={set("contactEmail")} />
+          </div>
+
+          <div className="section-label">Delivery customer party</div>
+          <div className="field-row">
+            <div className="field">
+              <label>Party name *</label>
+              <input placeholder="Customer Co" value={f.customerName} onChange={set("customerName")} />
+            </div>
+            <div className="field">
+              <label>Street *</label>
+              <input value={f.customerStreet} onChange={set("customerStreet")} />
+            </div>
+          </div>
+          <div className="field-row-3">
+            <div className="field">
+              <label>City *</label>
+              <input value={f.customerCity} onChange={set("customerCity")} />
+            </div>
+            <div className="field">
+              <label>Postal zone</label>
+              <input value={f.customerZone} onChange={set("customerZone")} />
+            </div>
+            <div className="field">
+              <label>Country (ISO)</label>
+              <input maxLength={2} value={f.customerCountry} onChange={set("customerCountry")} />
+            </div>
+          </div>
+
+          <div className="section-label">Shipment &amp; delivery</div>
+          <div className="field-row">
+            <div className="field">
+              <label>Shipment ID</label>
+              <input value={f.shipId} onChange={set("shipId")} />
+            </div>
+            <div className="field">
+              <label>Consignment ID</label>
+              <input value={f.consId} onChange={set("consId")} />
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Delivery street *</label>
+              <input value={f.delivStreet} onChange={set("delivStreet")} />
+            </div>
+            <div className="field">
+              <label>Delivery city *</label>
+              <input value={f.delivCity} onChange={set("delivCity")} />
+            </div>
+          </div>
+          <div className="field-row-3">
+            <div className="field">
+              <label>Postal zone</label>
+              <input value={f.delivZone} onChange={set("delivZone")} />
+            </div>
+            <div className="field">
+              <label>Country</label>
+              <input maxLength={2} value={f.delivCountry} onChange={set("delivCountry")} />
+            </div>
+            <div className="field" />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Delivery window start</label>
+              <input type="date" value={f.periodStart} onChange={set("periodStart")} />
+            </div>
+            <div className="field">
+              <label>Delivery window end</label>
+              <input type="date" value={f.periodEnd} onChange={set("periodEnd")} />
+            </div>
+          </div>
+
+          <div className="section-label">Despatch line</div>
+          <div className="field-row">
+            <div className="field">
+              <label>Item name *</label>
+              <input value={f.lineItemName} onChange={set("lineItemName")} />
+            </div>
+            <div className="field">
+              <label>Description *</label>
+              <input value={f.lineItemDesc} onChange={set("lineItemDesc")} />
+            </div>
+          </div>
+          <div className="field-row-3">
+            <div className="field">
+              <label>Quantity</label>
+              <input type="number" value={f.lineQty} onChange={set("lineQty")} />
+            </div>
+            <div className="field">
+              <label>Unit code</label>
+              <input value={f.lineUnit} onChange={set("lineUnit")} />
+            </div>
+            <div className="field">
+              <label>Line ID</label>
+              <input value={f.lineId} onChange={set("lineId")} />
+            </div>
+          </div>
+
+          <div className={styles.actions}>
+            <button type="button" className="btn btn-primary" onClick={() => void submit()} disabled={loading || !valid}>
+              {loading ? (
+                <>
+                  <span className="spinner" /> Creating…
+                </>
+              ) : (
+                "Create despatch advice →"
+              )}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate("/app/despatch/view")}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
