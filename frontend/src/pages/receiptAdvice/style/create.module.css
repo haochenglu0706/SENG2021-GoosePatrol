@@ -1,0 +1,174 @@
+.page {
+  max-width: 860px;
+}
+
+.previewCard {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.previewGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.previewKey {
+  font-size: 9px;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+
+.previewVal {
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.lineItem {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lineLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lineName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.lineDesc {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.lineRight {
+  text-align: right;
+}
+
+.lineQty {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--display);
+}
+
+.lineUnit {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.emptySelect {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.emptySelectIcon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.emptySelectText {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.selectCard {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selectCard:hover {
+  border-color: var(--accent);
+  background: #f9731608;
+}
+
+.selectCardSelected {
+  border-color: var(--accent);
+  background: #f9731610;
+}
+
+.selectCardLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.selectCardId {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.selectCardMeta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.selectCardRight {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.successBox {
+  text-align: center;
+  padding: 32px;
+}
+
+.successIcon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.successId {
+  font-size: 11px;
+  color: var(--muted);
+  word-break: break-all;
+  margin-top: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.scrollList {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
