@@ -703,7 +703,7 @@ export async function createDespatchAdvice(event: any) {
                 ConditionExpression: "attribute_not_exists(documentId)",
             })
         );
-        return ok(item, 201);
+        return ok({despatchAdviceId: item.despatchAdviceId}, 201);
     } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
             return conflict(`A despatch advice with documentId '${String(body.documentId)}' already exists`);
@@ -739,22 +739,55 @@ export async function listDespatchAdvices(event: any) {
 
 /**
  * Retrieves a single despatch advice by its despatchAdviceId path parameter.
- * GET /despatch-advices/{despatchId}
+ * GET /despatch-advices/{despatchAdviceId}
  */
 export async function getDespatchAdvice(event: any) {
-    const despatchId = event?.pathParameters?.despatchId;
+    const despatchAdviceId =
+        event?.pathParameters?.despatchAdviceId ?? event?.pathParameters?.despatchId;
+    const sessionId =
+        event?.headers?.sessionId ??
+        event?.headers?.sessionid ??
+        event?.headers?.["session-id"];
+
+    const clientId = await verifySession(sessionId);
+    if (!clientId) {
+        return {
+            statusCode: 401,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({
+                error: "Unauthorized",
+                message: "Invalid or missing session",
+            }),
+        };
+    }
 
     try {
         const result = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Key: marshall({ despatchAdviceId: despatchId }),
+                Key: marshall({ despatchAdviceId }),
             })
         );
 
-        if (!result.Item) return notFound(`Despatch advice not found: ${despatchId}`);
+        if (!result.Item) return notFound(`Despatch advice not found: ${despatchAdviceId}`);
 
-        return ok(unmarshall(result.Item));
+        const despatchAdvice = unmarshall(result.Item) as {
+            senderId?: string;
+            receiverId?: string;
+        };
+
+        if (despatchAdvice.senderId !== clientId && despatchAdvice.receiverId !== clientId) {
+            return {
+                statusCode: 401,
+                headers: CORS_HEADERS,
+                body: JSON.stringify({
+                    error: "Unauthorized",
+                    message: "You are not allowed to view this despatch advice",
+                }),
+            };
+        }
+
+        return ok(despatchAdvice);
     } catch (err: any) {
         return internalError(err);
     }
@@ -1074,7 +1107,7 @@ export async function exportDespatchAdviceAsUblXml(despatchAdviceId: string) {
 
 export async function updateDespatchAdvice(
     event: any,
-    documentId: string,
+    despatchAdviceId: string,
     sessionId: string | undefined
 ) {
     // authorisation: session must exist
@@ -1103,21 +1136,8 @@ export async function updateDespatchAdvice(
         };
     }
 
-    // ensure path ID and body ID are consistent (when both provided)
-    const bodyDocId = body.documentId ?? body.documentID;
-    if (bodyDocId != null && String(bodyDocId) !== documentId) {
-        return {
-            statusCode: 400,
-            headers: CORS_HEADERS,
-            body: JSON.stringify({
-                error: "BadRequest",
-                message: "documentId in path and body must match",
-            }),
-        };
-    }
-
-    // always use the path parameter as the canonical documentId
-    body.documentId = documentId;
+    // always use the path parameter as the canonical despatchAdviceId
+    body.despatchAdviceId = despatchAdviceId;
     if ("documentID" in body) delete body.documentID;
 
     // validate required fields according to swagger schema
@@ -1134,9 +1154,15 @@ export async function updateDespatchAdvice(
     }
 
     try {
-        const existing = await findDespatchAdviceByDocumentId(documentId);
+        // look up existing item by despatchAdviceId
+        const result = await dynamo.send(
+            new GetItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId }),
+            })
+        );
 
-        if (!existing) {
+        if (!result.Item) {
             return {
                 statusCode: 404,
                 headers: CORS_HEADERS,
@@ -1147,7 +1173,10 @@ export async function updateDespatchAdvice(
             };
         }
 
-        if (!sessionMayModifyDespatchAdvice(existing as { senderId?: string; clientId?: string }, clientId)) {
+        const existing = unmarshall(result.Item) as any;
+
+        // optional: simple ownership check — only allow sender to update
+        if (existing.senderId && existing.senderId !== body.senderId) {
             return {
                 statusCode: 401,
                 headers: CORS_HEADERS,
@@ -1197,7 +1226,7 @@ export async function updateDespatchAdvice(
 
 export async function deleteDespatchAdvice(
     event: any,
-    documentId: string,
+    despatchAdviceId: string,
     sessionId: string | undefined
 ) {
     // authorisation: session must exist
@@ -1214,9 +1243,15 @@ export async function deleteDespatchAdvice(
     }
 
     try {
-        const existing = await findDespatchAdviceByDocumentId(documentId);
+        // find the item by despatchAdviceId
+        const result = await dynamo.send(
+            new GetItemCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                Key: marshall({ despatchAdviceId }),
+            })
+        );
 
-        if (!existing) {
+        if (!result.Item) {
             return {
                 statusCode: 404,
                 headers: CORS_HEADERS,
@@ -1227,7 +1262,10 @@ export async function deleteDespatchAdvice(
             };
         }
 
-        if (!sessionMayModifyDespatchAdvice(existing as { senderId?: string; clientId?: string }, clientId)) {
+        const existing = unmarshall(result.Item) as any;
+
+        // optional: only allow sender to delete
+        if (existing.senderId && existing.senderId !== clientId) {
             return {
                 statusCode: 401,
                 headers: CORS_HEADERS,
@@ -1269,14 +1307,14 @@ export async function deleteDespatchAdvice(
 
 /**
  * Cancels the fulfilment of a despatch advice.
- * POST /despatch-advices/{despatchId}/fulfilment-cancellation
+ * POST /despatch-advices/{despatchAdviceId}/fulfilment-cancellation
  */
-export async function cancelFulfilment(event: any, despatchId: string) {
+export async function cancelFulfilment(event: any, despatchAdviceId: string) {
     try {
         const result = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Key: marshall({ despatchAdviceId: despatchId }),
+                Key: marshall({ despatchAdviceId }),
             })
         );
 
@@ -1291,7 +1329,7 @@ export async function cancelFulfilment(event: any, despatchId: string) {
         await dynamo.send(
             new UpdateItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Key: marshall({ despatchAdviceId: despatchId }),
+                Key: marshall({ despatchAdviceId }),
                 UpdateExpression: "SET #s = :s",
                 ExpressionAttributeNames: { "#s": "status" },
                 ExpressionAttributeValues: marshall({ ":s": "FULFILMENT_CANCELLED" }),
