@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
@@ -47,6 +47,35 @@ export default function DespatchCreatePage() {
     lineItemDesc: "A standard widget",
     note: "",
   });
+
+  const [clients, setClients] = useState<{ clientId: string; username: string }[]>([]);
+  const [clientsErr, setClientsErr] = useState("");
+  const [receiverOpen, setReceiverOpen] = useState(false);
+  const receiverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    apiFetch<{ clientId: string; username: string }[]>("/clients", {}, sessionId)
+      .then((data) => {
+        console.log("GET /clients response:", data);
+        setClients(data.filter((c) => c.clientId !== clientId));
+      })
+      .catch((e: Error) => {
+        console.error("GET /clients error:", e);
+        setClientsErr(e.message);
+      });
+  }, [sessionId, clientId]);
+
+  // Close receiver dropdown on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (receiverRef.current && !receiverRef.current.contains(e.target as Node)) {
+        setReceiverOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -185,12 +214,60 @@ export default function DespatchCreatePage() {
               <input placeholder="DA-001" value={f.documentId} onChange={set("documentId")} />
             </div>
             <div className="field">
-              <label>Receiver ID *</label>
-              <input
-                placeholder="Receiver client UUID"
-                value={f.receiverId}
-                onChange={set("receiverId")}
-              />
+              <label>Receiver *</label>
+              <div className={styles.receiverDropdown} ref={receiverRef}>
+                <button
+                  type="button"
+                  className={styles.receiverTrigger}
+                  onClick={() => setReceiverOpen((o) => !o)}
+                  aria-haspopup="listbox"
+                  aria-expanded={receiverOpen}
+                >
+                  {f.receiverId ? (() => {
+                    const c = clients.find((c) => c.clientId === f.receiverId);
+                    return c ? (
+                      <div>
+                        <div className={styles.receiverTriggerName}>{c.username}</div>
+                        <div className={styles.receiverTriggerSub}>{c.clientId}</div>
+                      </div>
+                    ) : (
+                      <span className={styles.receiverTriggerPlaceholder}>— Select a receiver —</span>
+                    );
+                  })() : (
+                    <span className={styles.receiverTriggerPlaceholder}>— Select a receiver —</span>
+                  )}
+                  <span style={{ fontSize: 9, color: "var(--dim)" }}>{receiverOpen ? "▲" : "▼"}</span>
+                </button>
+                {receiverOpen && (
+                  <div className={styles.receiverMenu} role="listbox">
+                    {clientsErr ? (
+                      <div className={styles.receiverOption} style={{ color: "var(--red, #c00)", cursor: "default" }}>
+                        Error: {clientsErr}
+                      </div>
+                    ) : clients.length === 0 ? (
+                      <div className={styles.receiverOption} style={{ color: "var(--muted)", cursor: "default" }}>
+                        No other users found
+                      </div>
+                    ) : (
+                      clients.map((c) => (
+                        <div
+                          key={c.clientId}
+                          role="option"
+                          aria-selected={f.receiverId === c.clientId}
+                          className={`${styles.receiverOption} ${f.receiverId === c.clientId ? styles.receiverOptionActive : ""}`}
+                          onClick={() => {
+                            setF((p) => ({ ...p, receiverId: c.clientId }));
+                            setReceiverOpen(false);
+                          }}
+                        >
+                          <div className={styles.receiverOptionName}>{c.username}</div>
+                          <div className={styles.receiverOptionId}>{c.clientId}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="field-row">

@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { apiFetch, downloadXml } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
-import { loadReceiptIds, rememberReceiptId } from "../../utils/receiptIndex";
 import styles from "./style/view.module.css";
 
 // ---------------------------------------------------------------------------
@@ -151,7 +150,7 @@ function ReceiptDetailModal({
 // ---------------------------------------------------------------------------
 
 export default function ViewReceiptAdvicePage() {
-  const { clientId, sessionId } = useAuth();
+  const { sessionId } = useAuth();
 
   const [receipts, setReceipts] = useState<ReceiptAdviceRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -164,38 +163,25 @@ export default function ViewReceiptAdvicePage() {
   const [addId, setAddId] = useState("");
   const [addErr, setAddErr] = useState("");
 
-  // Load all receipt advices tracked in localStorage for this client
+  // Load all receipt advices for this user from the server
   const load = useCallback(async () => {
-    if (!clientId || !sessionId) return;
+    if (!sessionId) return;
     setLoading(true);
     setErr("");
 
-    const ids = loadReceiptIds(clientId);
-    const rows: ReceiptAdviceRow[] = [];
-
-    for (const id of ids) {
-      try {
-        const row = await apiFetch<ReceiptAdviceRow>(
-          `/receipt-advices/${encodeURIComponent(id)}`,
-          {},
-          sessionId
-        );
-        // Only show rows the current user is allowed to see (senderId or receiverId)
-        const allowed =
-          row.senderId === clientId ||
-          row.receiverId === clientId ||
-          (row as { clientId?: string }).clientId === clientId;
-        if (allowed) {
-          rows.push({ ...row, receiptAdviceId: row.receiptAdviceId ?? id });
-        }
-      } catch {
-        // skip revoked or not-found
-      }
+    try {
+      const rows = await apiFetch<ReceiptAdviceRow[]>(
+        `/receipt-advices`,
+        {},
+        sessionId
+      );
+      setReceipts(rows);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setLoading(false);
     }
-
-    setReceipts(rows);
-    setLoading(false);
-  }, [clientId, sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
     void load();
@@ -222,23 +208,14 @@ export default function ViewReceiptAdvicePage() {
   };
 
   const registerById = async () => {
-    if (!clientId || !sessionId || !addId.trim()) return;
+    if (!sessionId || !addId.trim()) return;
     setAddErr("");
     try {
-      const row = await apiFetch<ReceiptAdviceRow>(
+      await apiFetch<ReceiptAdviceRow>(
         `/receipt-advices/${encodeURIComponent(addId.trim())}`,
         {},
         sessionId
       );
-      const allowed =
-        row.senderId === clientId ||
-        row.receiverId === clientId ||
-        (row as { clientId?: string }).clientId === clientId;
-      if (!allowed) {
-        setAddErr("You do not have access to this receipt advice.");
-        return;
-      }
-      rememberReceiptId(clientId, addId.trim());
       setAddId("");
       void load();
     } catch (e) {

@@ -33,6 +33,10 @@ export async function route(event: any) {
     return auth.register(event);
   }
 
+  if (method === "GET" && path === "/clients") {
+    return auth.listClients(event);
+  }
+
   // DELETE /sessions/{sessionId} — logout
   const sessionDeleteMatch = path.match(/^\/sessions\/([^/]+)$/);
   if (method === "DELETE" && sessionDeleteMatch) {
@@ -111,6 +115,11 @@ export async function route(event: any) {
   }
   if (method === "GET" && (path === "/health" || path === "/health/")) {
     return health.getHealth(event);
+  }
+
+  // GET /receipt-advices — list all receipt advices for the session user
+  if (method === "GET" && path === "/receipt-advices") {
+    return receipt.listReceiptAdvices(event);
   }
 
   const receiptUblMatch = path.match(/^\/receipt-advices\/([^/]+)\/ubl$/);
