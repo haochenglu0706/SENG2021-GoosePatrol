@@ -51,6 +51,11 @@ Resources:
           Properties:
             Path: /clients
             Method: post
+        ListClients:
+          Type: Api
+          Properties:
+            Path: /clients
+            Method: get
         CreateSession:
           Type: Api
           Properties:
@@ -104,6 +109,11 @@ Resources:
             Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
         #ReceiptAdvice routes
+        ListReceiptAdvices:
+          Type: Api
+          Properties:
+            Path: /receipt-advices
+            Method: get
         getReceiptAdvice:
           Type: Api
           Properties:

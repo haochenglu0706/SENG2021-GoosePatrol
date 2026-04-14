@@ -1,4 +1,4 @@
-import { GetItemCommand, PutItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { GetItemCommand, PutItemCommand, ScanCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { CORS_HEADERS } from "../cors.js";
@@ -626,6 +626,59 @@ function sanitiseReceiptAdviceCreate(
   }
 
   return item;
+}
+
+// ---------------------------------------------------------------------------
+// GET /receipt-advices  — list all receipt advices belonging to the session user
+// ---------------------------------------------------------------------------
+export async function listReceiptAdvices(event: any) {
+  const sessionClientId = await verifySession(getSessionIdFromEvent(event));
+  if (!sessionClientId) {
+    return unauthorized("Invalid or missing session");
+  }
+
+  let sessionUsername: string | undefined;
+  try {
+    sessionUsername = await getUsernameByClientId(sessionClientId);
+  } catch (err) {
+    return internalError(err);
+  }
+
+  try {
+    const items: Record<string, any>[] = [];
+    let exclusiveStartKey: Record<string, any> | undefined;
+
+    do {
+      const result = await dynamo.send(
+        new ScanCommand({
+          TableName: RECEIPT_ADVICES_TABLE,
+          ExclusiveStartKey: exclusiveStartKey,
+        })
+      );
+
+      for (const raw of result.Items ?? []) {
+        const item = unmarshall(raw);
+        if (sessionMayReadReceiptAdvice(
+          item as { senderId?: string; receiverId?: string; clientId?: string },
+          sessionClientId,
+          sessionUsername
+        )) {
+          items.push(item);
+        }
+      }
+
+      exclusiveStartKey = result.LastEvaluatedKey;
+    } while (exclusiveStartKey);
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify(items),
+    };
+  } catch (err) {
+    console.error("DynamoDB Scan (ReceiptAdvices) error:", err);
+    return internalError(err);
+  }
 }
 
 // ---------------------------------------------------------------------------

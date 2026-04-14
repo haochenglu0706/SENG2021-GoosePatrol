@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync } from "crypto";
-import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, CLIENTS_TABLE, SESSIONS_TABLE } from "../db.js";
@@ -344,6 +344,62 @@ export async function getClientIdByUsername(event: any) {
     headers: CORS_HEADERS,
     body: JSON.stringify({ clientId }),
   };
+/**
+ * GET /clients — returns all registered users (username + clientId only).
+ * Requires a valid session.
+ */
+export async function listClients(event: any) {
+  const sessionId =
+    event.headers?.sessionId ??
+    event.headers?.sessionid ??
+    event.headers?.["session-id"];
+
+  const valid = await verifySession(sessionId);
+  if (!valid) {
+    return {
+      statusCode: 401,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: "Unauthorized", message: "Invalid or missing session" }),
+    };
+  }
+
+  try {
+    const clients: { clientId: string; username: string }[] = [];
+    let exclusiveStartKey: Record<string, any> | undefined;
+
+    do {
+      const result = await dynamo.send(
+        new ScanCommand({
+          TableName: CLIENTS_TABLE,
+          ProjectionExpression: "clientId, username",
+          ExclusiveStartKey: exclusiveStartKey,
+        })
+      );
+
+      for (const raw of result.Items ?? []) {
+        const item = unmarshall(raw) as { clientId?: string; username?: string };
+        if (item.clientId && item.username) {
+          clients.push({ clientId: item.clientId, username: item.username });
+        }
+      }
+
+      exclusiveStartKey = result.LastEvaluatedKey;
+    } while (exclusiveStartKey);
+
+    clients.sort((a, b) => a.username.localeCompare(b.username));
+
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify(clients),
+    };
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: "InternalError", message: (err as Error).message }),
+    };
+  }
 }
 
 export async function logout(event: any) {
