@@ -61,6 +61,11 @@ Resources:
           Properties:
             Path: /sessions/{sessionId}
             Method: delete
+        GetClientIdByUsername:
+          Type: Api
+          Properties:
+            Path: /clients/{username}/client-id
+            Method: get
 
         # DespatchAdvice routes
         ListDespatchAdvices:

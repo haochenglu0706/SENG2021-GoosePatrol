@@ -704,6 +704,22 @@ export async function listDespatchAdvices(event: any) {
 export async function getDespatchAdvice(event: any) {
     const despatchAdviceId =
         event?.pathParameters?.despatchAdviceId ?? event?.pathParameters?.despatchId;
+    const sessionId =
+        event?.headers?.sessionId ??
+        event?.headers?.sessionid ??
+        event?.headers?.["session-id"];
+
+    const clientId = await verifySession(sessionId);
+    if (!clientId) {
+        return {
+            statusCode: 401,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({
+                error: "Unauthorized",
+                message: "Invalid or missing session",
+            }),
+        };
+    }
 
     try {
         const result = await dynamo.send(
@@ -715,7 +731,23 @@ export async function getDespatchAdvice(event: any) {
 
         if (!result.Item) return notFound(`Despatch advice not found: ${despatchAdviceId}`);
 
-        return ok(unmarshall(result.Item));
+        const despatchAdvice = unmarshall(result.Item) as {
+            senderId?: string;
+            receiverId?: string;
+        };
+
+        if (despatchAdvice.senderId !== clientId && despatchAdvice.receiverId !== clientId) {
+            return {
+                statusCode: 401,
+                headers: CORS_HEADERS,
+                body: JSON.stringify({
+                    error: "Unauthorized",
+                    message: "You are not allowed to view this despatch advice",
+                }),
+            };
+        }
+
+        return ok(despatchAdvice);
     } catch (err: any) {
         return internalError(err);
     }
