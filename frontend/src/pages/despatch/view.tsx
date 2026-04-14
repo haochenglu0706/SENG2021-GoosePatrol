@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, downloadXml } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
@@ -23,8 +23,16 @@ function docId(d: DespatchAdviceRow): string {
   return d.documentId ?? d.documentID ?? "—";
 }
 
+/** Statuses that prevent editing */
+function canEdit(d: DespatchAdviceRow): boolean {
+  const s = (d.status ?? "").toUpperCase();
+  return s !== "RECEIVED" && s !== "FULFILMENT_CANCELLED";
+}
+
 export default function DespatchViewPage() {
   const { clientId, sessionId } = useAuth();
+  const navigate = useNavigate();
+
   const [despatches, setDespatches] = useState<DespatchAdviceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -222,7 +230,10 @@ export default function DespatchViewPage() {
         {tab === "despatch" ? (
           <div className="card">
             <div className="card-title">Sent by you</div>
-            <div className="card-sub">Only rows where senderId matches your client ID are shown.</div>
+            <div className="card-sub">
+              Only rows where senderId matches your client ID are shown. Edit is available for
+              despatches that are not yet received or cancelled.
+            </div>
             {err ? <div className="alert alert-err">{err}</div> : null}
             {loading ? (
               <div className={styles.centerMuted}>
@@ -259,6 +270,7 @@ export default function DespatchViewPage() {
                         </td>
                         <td>
                           <div className={styles.actions}>
+                            {/* View */}
                             <button
                               type="button"
                               className="btn btn-ghost"
@@ -267,6 +279,32 @@ export default function DespatchViewPage() {
                             >
                               View
                             </button>
+
+                            {/* ── Edit button (NEW) ── */}
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{
+                                fontSize: 11,
+                                padding: "5px 8px",
+                                color: canEdit(d) ? "var(--blue)" : "var(--dim)",
+                                cursor: canEdit(d) ? "pointer" : "not-allowed",
+                              }}
+                              title={
+                                canEdit(d)
+                                  ? "Edit this despatch advice"
+                                  : `Cannot edit — status is ${d.status}`
+                              }
+                              onClick={() =>
+                                canEdit(d) &&
+                                navigate(`/app/despatch/edit/${encodeURIComponent(d.despatchAdviceId)}`)
+                              }
+                              disabled={!canEdit(d) || !!busy[d.despatchAdviceId]}
+                            >
+                              ✏ Edit
+                            </button>
+
+                            {/* Download XML */}
                             <button
                               type="button"
                               className="btn btn-ghost"
@@ -274,8 +312,14 @@ export default function DespatchViewPage() {
                               onClick={() => void downloadDespatchXml(d.despatchAdviceId)}
                               disabled={!!busy[d.despatchAdviceId]}
                             >
-                              {busy[d.despatchAdviceId] === "xml" ? <span className="spinner" /> : "↓ XML"}
+                              {busy[d.despatchAdviceId] === "xml" ? (
+                                <span className="spinner" />
+                              ) : (
+                                "↓ XML"
+                              )}
                             </button>
+
+                            {/* Receipt */}
                             {canReceipt(d) ? (
                               <button
                                 type="button"
@@ -286,6 +330,8 @@ export default function DespatchViewPage() {
                                 Receipt
                               </button>
                             ) : null}
+
+                            {/* Cancel */}
                             {canCancel(d) ? (
                               <button
                                 type="button"
@@ -346,8 +392,8 @@ export default function DespatchViewPage() {
                 <div className="empty-icon">🧾</div>
                 <div className="empty-title">No receipt advices registered</div>
                 <div className="empty-sub">
-                  Create one from a despatch where you are the receiver, or paste an ID you are allowed
-                  to read.
+                  Create one from a despatch where you are the receiver, or paste an ID you are
+                  allowed to read.
                 </div>
               </div>
             ) : (
@@ -379,7 +425,11 @@ export default function DespatchViewPage() {
                               onClick={() => void downloadReceiptXml(id)}
                               disabled={!!busy[id]}
                             >
-                              {busy[id] === "rxml" ? <span className="spinner" /> : "↓ XML"}
+                              {busy[id] === "rxml" ? (
+                                <span className="spinner" />
+                              ) : (
+                                "↓ XML"
+                              )}
                             </button>
                           </td>
                         </tr>

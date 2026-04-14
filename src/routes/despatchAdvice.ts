@@ -1082,6 +1082,7 @@ export async function updateDespatchAdvice(
     if (!clientId) {
         return {
             statusCode: 401,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "Unauthorized",
                 message: "Invalid or missing session",
@@ -1094,6 +1095,7 @@ export async function updateDespatchAdvice(
     if (parseError) {
         return {
             statusCode: 400,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "BadRequest",
                 message: parseError,
@@ -1106,6 +1108,7 @@ export async function updateDespatchAdvice(
     if (bodyDocId != null && String(bodyDocId) !== documentId) {
         return {
             statusCode: 400,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "BadRequest",
                 message: "documentId in path and body must match",
@@ -1122,6 +1125,7 @@ export async function updateDespatchAdvice(
     if (validationError) {
         return {
             statusCode: 400,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "BadRequest",
                 message: validationError,
@@ -1135,6 +1139,7 @@ export async function updateDespatchAdvice(
         if (!existing) {
             return {
                 statusCode: 404,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "NotFound",
                     message: "Despatch advice not found",
@@ -1145,6 +1150,7 @@ export async function updateDespatchAdvice(
         if (!sessionMayModifyDespatchAdvice(existing as { senderId?: string; clientId?: string }, clientId)) {
             return {
                 statusCode: 401,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "Unauthorized",
                     message: "You are not allowed to modify this despatch advice",
@@ -1174,11 +1180,13 @@ export async function updateDespatchAdvice(
 
         return {
             statusCode: 200,
+            headers: CORS_HEADERS,
             body: JSON.stringify(updated),
         };
     } catch (err: any) {
         return {
             statusCode: 500,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "InternalServerError",
                 message: err.message ?? "Internal server error",
@@ -1197,6 +1205,7 @@ export async function deleteDespatchAdvice(
     if (!clientId) {
         return {
             statusCode: 401,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "Unauthorized",
                 message: "Invalid or missing session",
@@ -1210,6 +1219,7 @@ export async function deleteDespatchAdvice(
         if (!existing) {
             return {
                 statusCode: 404,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "NotFound",
                     message: "Despatch advice not found",
@@ -1220,6 +1230,7 @@ export async function deleteDespatchAdvice(
         if (!sessionMayModifyDespatchAdvice(existing as { senderId?: string; clientId?: string }, clientId)) {
             return {
                 statusCode: 401,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "Unauthorized",
                     message: "You are not allowed to delete this despatch advice",
@@ -1238,11 +1249,13 @@ export async function deleteDespatchAdvice(
         // 204 No Content as per swagger.yaml
         return {
             statusCode: 204,
+            headers: CORS_HEADERS,
             body: "",
         };
     } catch (err: any) {
         return {
             statusCode: 500,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "InternalServerError",
                 message: err.message ?? "Internal server error",
