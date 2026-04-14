@@ -1,4 +1,11 @@
-import { PutItemCommand, GetItemCommand, ScanCommand, DeleteItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import {
+    PutItemCommand,
+    GetItemCommand,
+    ScanCommand,
+    DeleteItemCommand,
+    UpdateItemCommand,
+    type AttributeValue,
+} from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
@@ -140,6 +147,8 @@ interface DespatchAdvice {
     documentId: string;
     senderId: string;
     receiverId: string;
+    /** Set from session on create — used for delete/update auth (distinct from payload senderId). */
+    clientId?: string;
     copyIndicator?: boolean;
     replaces?: string;
     issueDate?: string;
@@ -179,6 +188,32 @@ function internalError(err: any) {
   return { statusCode: 500, headers: CORS_HEADERS, body: JSON.stringify(
     { error: "InternalServerError", message: err?.message ?? "Internal server error" }
  ) };
+}
+
+/** Session header on API Gateway events (and tests may omit). */
+function getSessionIdFromEvent(event: any): string | undefined {
+    if (!event || typeof event !== "object") return undefined;
+    const h = event.headers;
+    if (!h || typeof h !== "object") return undefined;
+    const raw =
+        (h as Record<string, unknown>).sessionId ??
+        (h as Record<string, unknown>).SessionId ??
+        (h as Record<string, unknown>).sessionid ??
+        (h as Record<string, unknown>)["session-id"];
+    return typeof raw === "string" ? raw : undefined;
+}
+
+/**
+ * `senderId` is a document field (trading partner id) and often differs from the
+ * logged-in user's `clientId`. Authorise if either matches the session client.
+ */
+function sessionMayModifyDespatchAdvice(
+    existing: { senderId?: string; clientId?: string },
+    sessionClientId: string
+): boolean {
+    if (existing.clientId != null && existing.clientId === sessionClientId) return true;
+    if (existing.senderId != null && existing.senderId === sessionClientId) return true;
+    return false;
 }
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Body parsing /////////////////////////////////////////
@@ -655,6 +690,11 @@ export async function createDespatchAdvice(event: any) {
 
     const item = sanitiseDespatchAdvice(body);
 
+    const ownerClientId = await verifySession(getSessionIdFromEvent(event));
+    if (ownerClientId) {
+        item.clientId = ownerClientId;
+    }
+
     try {
         await dynamo.send(
             new PutItemCommand({
@@ -1012,6 +1052,30 @@ function buildUblXml(doc: DespatchAdvice): string {
  * GET /despatch-advices/{despatchAdviceId}/ubl
  * Serialises a stored despatch advice to UBL DespatchAdvice XML (2.1-style metadata and OASIS 2.x namespaces).
  */
+/**
+ * Table key is despatchAdviceId; documentId is a plain attribute (no GSI in app code).
+ * Scan with FilterExpression must not use Limit: 1 — DynamoDB applies the filter after
+ * reading at most Limit items, so a match on a later row would never be seen.
+ */
+export async function findDespatchAdviceByDocumentId(documentId: string): Promise<Record<string, unknown> | null> {
+    let exclusiveStartKey: Record<string, AttributeValue> | undefined;
+    do {
+        const result = await dynamo.send(
+            new ScanCommand({
+                TableName: DESPATCH_ADVICES_TABLE,
+                FilterExpression: "documentId = :d",
+                ExpressionAttributeValues: marshall({ ":d": documentId }),
+                ExclusiveStartKey: exclusiveStartKey,
+            })
+        );
+        if (result.Items && result.Items.length > 0) {
+            return unmarshall(result.Items[0]) as Record<string, unknown>;
+        }
+        exclusiveStartKey = result.LastEvaluatedKey;
+    } while (exclusiveStartKey);
+    return null;
+}
+
 export async function exportDespatchAdviceAsUblXml(despatchAdviceId: string) {
     if (!despatchAdviceId?.trim()) {
         return badRequest("Despatch advice id is required");
@@ -1051,6 +1115,7 @@ export async function updateDespatchAdvice(
     if (!clientId) {
         return {
             statusCode: 401,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "Unauthorized",
                 message: "Invalid or missing session",
@@ -1063,6 +1128,7 @@ export async function updateDespatchAdvice(
     if (parseError) {
         return {
             statusCode: 400,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "BadRequest",
                 message: parseError,
@@ -1079,6 +1145,7 @@ export async function updateDespatchAdvice(
     if (validationError) {
         return {
             statusCode: 400,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "BadRequest",
                 message: validationError,
@@ -1098,6 +1165,7 @@ export async function updateDespatchAdvice(
         if (!result.Item) {
             return {
                 statusCode: 404,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "NotFound",
                     message: "Despatch advice not found",
@@ -1111,6 +1179,7 @@ export async function updateDespatchAdvice(
         if (existing.senderId && existing.senderId !== body.senderId) {
             return {
                 statusCode: 401,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "Unauthorized",
                     message: "You are not allowed to modify this despatch advice",
@@ -1126,6 +1195,9 @@ export async function updateDespatchAdvice(
         if (existing.status !== undefined) {
             updated.status = existing.status;
         }
+        if (existing.clientId !== undefined) {
+            updated.clientId = existing.clientId;
+        }
 
         await dynamo.send(
             new PutItemCommand({
@@ -1137,11 +1209,13 @@ export async function updateDespatchAdvice(
 
         return {
             statusCode: 200,
+            headers: CORS_HEADERS,
             body: JSON.stringify(updated),
         };
     } catch (err: any) {
         return {
             statusCode: 500,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "InternalServerError",
                 message: err.message ?? "Internal server error",
@@ -1160,6 +1234,7 @@ export async function deleteDespatchAdvice(
     if (!clientId) {
         return {
             statusCode: 401,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "Unauthorized",
                 message: "Invalid or missing session",
@@ -1179,6 +1254,7 @@ export async function deleteDespatchAdvice(
         if (!result.Item) {
             return {
                 statusCode: 404,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "NotFound",
                     message: "Despatch advice not found",
@@ -1192,6 +1268,7 @@ export async function deleteDespatchAdvice(
         if (existing.senderId && existing.senderId !== clientId) {
             return {
                 statusCode: 401,
+                headers: CORS_HEADERS,
                 body: JSON.stringify({
                     error: "Unauthorized",
                     message: "You are not allowed to delete this despatch advice",
@@ -1210,11 +1287,13 @@ export async function deleteDespatchAdvice(
         // 204 No Content as per swagger.yaml
         return {
             statusCode: 204,
+            headers: CORS_HEADERS,
             body: "",
         };
     } catch (err: any) {
         return {
             statusCode: 500,
+            headers: CORS_HEADERS,
             body: JSON.stringify({
                 error: "InternalServerError",
                 message: err.message ?? "Internal server error",

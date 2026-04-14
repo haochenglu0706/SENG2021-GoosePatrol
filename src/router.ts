@@ -125,7 +125,7 @@ export async function route(event: any) {
 
   const receiptUblMatch = path.match(/^\/receipt-advices\/([^/]+)\/ubl$/);
   if (method === "GET" && receiptUblMatch) {
-    return receipt.exportReceiptAdviceAsUblXml(receiptUblMatch[1]);
+    return receipt.exportReceiptAdviceAsUblXml(receiptUblMatch[1], event);
   }
 
   // GET /receipt-advices/{receiptAdviceId}

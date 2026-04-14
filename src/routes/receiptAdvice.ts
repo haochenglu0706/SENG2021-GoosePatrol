@@ -2,7 +2,14 @@ import { GetItemCommand, PutItemCommand, UpdateItemCommand } from "@aws-sdk/clie
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 import { CORS_HEADERS } from "../cors.js";
-import { dynamo, DESPATCH_ADVICES_TABLE, RECEIPT_ADVICES_TABLE } from "../db.js";
+import {
+  dynamo,
+  CLIENTS_TABLE,
+  DESPATCH_ADVICES_TABLE,
+  RECEIPT_ADVICES_TABLE,
+} from "../db.js";
+import { verifySession } from "./auth.js";
+import { findDespatchAdviceByDocumentId } from "./despatchAdvice.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// Types (aligned with swagger.yaml ReceiptAdviceCreateRequest + nested schemas)
@@ -136,6 +143,73 @@ function internalError(err: unknown) {
     headers: CORS_HEADERS,
     body: JSON.stringify({ error: "InternalServerError", message }),
   };
+}
+
+function unauthorized(message: string) {
+  return {
+    statusCode: 401,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({ error: "Unauthorized", message }),
+  };
+}
+
+/** Session header on API Gateway events (aligned with despatchAdvice.ts). */
+function getSessionIdFromEvent(event: any): string | undefined {
+  if (!event || typeof event !== "object") return undefined;
+  const h = event.headers;
+  if (!h || typeof h !== "object") return undefined;
+  const raw =
+    (h as Record<string, unknown>).sessionId ??
+    (h as Record<string, unknown>).SessionId ??
+    (h as Record<string, unknown>).sessionid ??
+    (h as Record<string, unknown>)["session-id"];
+  return typeof raw === "string" ? raw : undefined;
+}
+
+/**
+ * Receipt advice is created by the receiving party (buyer), often a different client than
+ * whoever created the despatch (supplier). `clientId` on the despatch row is the supplier’s
+ * session when they created it — we must not use that here or the supplier could post a receipt.
+ * Authorisation: session client must match `receiverId` (set despatch.receiverId to the buyer’s
+ * registered clientId so the buyer’s login matches).
+ */
+function sessionMayCreateReceiptAdvice(
+  despatch: { receiverId?: string },
+  sessionClientId: string,
+  sessionUsername?: string
+): boolean {
+  if (despatch.receiverId != null && despatch.receiverId === sessionClientId) return true;
+  if (sessionUsername && despatch.receiverId != null && despatch.receiverId === sessionUsername) {
+    return true;
+  }
+  return false;
+}
+
+async function getUsernameByClientId(clientId: string): Promise<string | undefined> {
+  const result = await dynamo.send(
+    new GetItemCommand({
+      TableName: CLIENTS_TABLE,
+      Key: marshall({ clientId }),
+    })
+  );
+  if (!result.Item) return undefined;
+  const row = unmarshall(result.Item) as { username?: unknown };
+  return typeof row.username === "string" ? row.username : undefined;
+}
+
+function sessionMayReadReceiptAdvice(
+  receipt: { senderId?: string; receiverId?: string; clientId?: string },
+  sessionClientId: string,
+  sessionUsername?: string
+): boolean {
+  if (receipt.clientId != null && receipt.clientId === sessionClientId) return true;
+  if (receipt.senderId != null && receipt.senderId === sessionClientId) return true;
+  if (receipt.receiverId != null && receipt.receiverId === sessionClientId) return true;
+  if (sessionUsername) {
+    if (receipt.senderId != null && receipt.senderId === sessionUsername) return true;
+    if (receipt.receiverId != null && receipt.receiverId === sessionUsername) return true;
+  }
+  return false;
 }
 
 /// /////////////////////////////////////////////////////////////////////////////
@@ -564,6 +638,11 @@ export async function getReceiptAdvice(event: any) {
     return badRequest("receiptAdviceId path parameter is required");
   }
 
+  const sessionClientId = await verifySession(getSessionIdFromEvent(event));
+  if (!sessionClientId) {
+    return unauthorized("Invalid or missing session");
+  }
+
   let receiptItem: Record<string, any>;
   try {
     const result = await dynamo.send(
@@ -588,6 +667,29 @@ export async function getReceiptAdvice(event: any) {
   } catch (err) {
     console.error("DynamoDB GetItem (ReceiptAdvices) error:", err);
     return internalError(err);
+  }
+
+  if (
+    !sessionMayReadReceiptAdvice(
+      receiptItem as { senderId?: string; receiverId?: string; clientId?: string },
+      sessionClientId
+    )
+  ) {
+    let sessionUsername: string | undefined;
+    try {
+      sessionUsername = await getUsernameByClientId(sessionClientId);
+    } catch (err) {
+      return internalError(err);
+    }
+    if (
+      !sessionMayReadReceiptAdvice(
+        receiptItem as { senderId?: string; receiverId?: string; clientId?: string },
+        sessionClientId,
+        sessionUsername
+      )
+    ) {
+      return unauthorized("You are not allowed to read this receipt advice");
+    }
   }
 
   if (receiptItem.documentStatusCode === "FULLY_RECEIVED") {
@@ -616,6 +718,10 @@ interface ReceiptAdviceRecord {
   receiptAdviceId: string;
   despatchAdviceId?: string;
   documentId: string;
+  senderId?: string;
+  receiverId?: string;
+  /** Set when receipt is created with a session — used for read auth. */
+  clientId?: string;
   copyIndicator?: boolean;
   documentStatusCode?: string;
   issueDate?: string;
@@ -880,10 +986,16 @@ function buildReceiptUblXml(doc: ReceiptAdviceRecord): string {
  * Serialises a stored receipt advice to UBL ReceiptAdvice XML (2.1-style metadata and OASIS 2.x namespaces).
  * Unlike GET /receipt-advices/{id}, this succeeds even when documentStatusCode is FULLY_RECEIVED.
  */
-export async function exportReceiptAdviceAsUblXml(receiptAdviceId: string) {
+export async function exportReceiptAdviceAsUblXml(receiptAdviceId: string, event: any) {
   if (!receiptAdviceId?.trim()) {
     return badRequest("receiptAdviceId is required");
   }
+
+  const sessionClientId = await verifySession(getSessionIdFromEvent(event));
+  if (!sessionClientId) {
+    return unauthorized("Invalid or missing session");
+  }
+
   try {
     const result = await dynamo.send(
       new GetItemCommand({
@@ -895,6 +1007,19 @@ export async function exportReceiptAdviceAsUblXml(receiptAdviceId: string) {
       return notFound(`Receipt advice not found: ${receiptAdviceId}`);
     }
     const doc = unmarshall(result.Item) as ReceiptAdviceRecord;
+
+    if (!sessionMayReadReceiptAdvice(doc, sessionClientId)) {
+      let sessionUsername: string | undefined;
+      try {
+        sessionUsername = await getUsernameByClientId(sessionClientId);
+      } catch (err) {
+        return internalError(err);
+      }
+      if (!sessionMayReadReceiptAdvice(doc, sessionClientId, sessionUsername)) {
+        return unauthorized("You are not allowed to read this receipt advice");
+      }
+    }
+
     const xml = buildReceiptUblXml(doc);
     return {
       statusCode: 200,
@@ -914,10 +1039,15 @@ export async function exportReceiptAdviceAsUblXml(receiptAdviceId: string) {
 // POST /despatch-advices/{despatchAdviceId}/receipt-advices
 // ---------------------------------------------------------------------------
 export async function createReceiptAdvice(event: any) {
-  const despatchAdviceId: string | undefined = event.pathParameters?.despatchAdviceId;
+  const pathSegment: string | undefined = event.pathParameters?.despatchAdviceId;
 
-  if (!despatchAdviceId || !nonEmptyString(despatchAdviceId)) {
+  if (!pathSegment || !nonEmptyString(pathSegment)) {
     return badRequest("despatchAdviceId path parameter is required");
+  }
+
+  const sessionClientId = await verifySession(getSessionIdFromEvent(event));
+  if (!sessionClientId) {
+    return unauthorized("Invalid or missing session");
   }
 
   const { body, error: parseError } = parseBody(event);
@@ -928,29 +1058,55 @@ export async function createReceiptAdvice(event: any) {
 
   let despatchItem: Record<string, any>;
   try {
-    const result = await dynamo.send(
+    const byKey = await dynamo.send(
       new GetItemCommand({
         TableName: DESPATCH_ADVICES_TABLE,
-        Key: marshall({ despatchAdviceId }),
+        Key: marshall({ despatchAdviceId: pathSegment }),
       })
     );
 
-    if (!result.Item) {
-      return {
-        statusCode: 404,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-          error: "NotFound",
-          message: `Despatch advice '${despatchAdviceId}' not found`,
-        }),
-      };
+    if (byKey.Item) {
+      despatchItem = unmarshall(byKey.Item);
+    } else {
+      const found = await findDespatchAdviceByDocumentId(pathSegment);
+      if (!found) {
+        return {
+          statusCode: 404,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({
+            error: "NotFound",
+            message: `Despatch advice '${pathSegment}' not found`,
+          }),
+        };
+      }
+      despatchItem = found as Record<string, any>;
     }
-
-    despatchItem = unmarshall(result.Item);
   } catch (err) {
     console.error("DynamoDB GetItem (DespatchAdvices) error:", err);
     return internalError(err);
   }
+
+  let sessionUsername: string | undefined;
+  const receiverId = (despatchItem as { receiverId?: unknown }).receiverId;
+  if (receiverId != null && receiverId !== sessionClientId) {
+    try {
+      sessionUsername = await getUsernameByClientId(sessionClientId);
+    } catch (err) {
+      return internalError(err);
+    }
+  }
+
+  if (
+    !sessionMayCreateReceiptAdvice(
+      despatchItem as { receiverId?: string },
+      sessionClientId,
+      sessionUsername
+    )
+  ) {
+    return unauthorized("You are not allowed to create a receipt advice for this despatch");
+  }
+
+  const despatchAdviceId = String(despatchItem.despatchAdviceId);
 
   if (despatchItem.status === "RECEIVED") {
     return {
@@ -965,6 +1121,7 @@ export async function createReceiptAdvice(event: any) {
 
   const receiptAdviceId = uuidv4();
   const receiptAdviceItem = sanitiseReceiptAdviceCreate(body, receiptAdviceId, despatchAdviceId);
+  receiptAdviceItem.clientId = sessionClientId;
 
   try {
     await dynamo.send(
