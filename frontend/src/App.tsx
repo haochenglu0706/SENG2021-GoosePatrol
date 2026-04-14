@@ -12,6 +12,7 @@ import InvoicesPage from "./pages/invoices/index";
 import ProfilePage from "./pages/profile/index";
 import CreateReceiptAdvicePage from "./pages/receiptAdvice/createReceiptAdvice";
 import ViewReceiptAdvicePage   from "./pages/receiptAdvice/viewReceiptAdvice";
+import EditDespatchPage from "./pages/despatch/editDespatch";
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="profile" element={<ProfilePage />} />
           <Route path="receipt-advices/create" element={<CreateReceiptAdvicePage />} />
           <Route path="receipt-advices/view"   element={<ViewReceiptAdvicePage />} />
+          <Route path="despatch/edit/:despatchId" element={<EditDespatchPage />} />
         </Route>
       </Route>
 

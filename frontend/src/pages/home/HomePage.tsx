@@ -25,7 +25,7 @@ export default function HomePage() {
 
       <div className="landing-hero">
         <div className="hero-glow" />
-        <div className="hero-label">🦢 Delivery document exchange — SaaS</div>
+        <div className="hero-label">Delivery document exchange — SaaS</div>
         <h1 className="hero-title">
           The smarter way to run <span className="hero-accent">despatch &amp; delivery</span>
         </h1>
@@ -47,17 +47,17 @@ export default function HomePage() {
       <div className="features-row">
         {[
           {
-            icon: "📋",
+            icon: "",
             title: "Order & delivery management",
             desc: "Track despatch documents end-to-end with clear parties, shipment details, and line items aligned to UBL 2.1.",
           },
           {
-            icon: "📦",
+            icon: "",
             title: "Despatch system",
             desc: "Issue despatch advices, monitor status from draft to received or cancelled, and export XML for downstream systems.",
           },
           {
-            icon: "🔗",
+            icon: "",
             title: "SaaS-ready workflow",
             desc: "Register clients, persist sessions securely, and work from a focused dashboard with role-aware views.",
           },
