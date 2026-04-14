@@ -699,20 +699,21 @@ export async function listDespatchAdvices(event: any) {
 
 /**
  * Retrieves a single despatch advice by its despatchAdviceId path parameter.
- * GET /despatch-advices/{despatchId}
+ * GET /despatch-advices/{despatchAdviceId}
  */
 export async function getDespatchAdvice(event: any) {
-    const despatchId = event?.pathParameters?.despatchId;
+    const despatchAdviceId =
+        event?.pathParameters?.despatchAdviceId ?? event?.pathParameters?.despatchId;
 
     try {
         const result = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Key: marshall({ despatchAdviceId: despatchId }),
+                Key: marshall({ despatchAdviceId }),
             })
         );
 
-        if (!result.Item) return notFound(`Despatch advice not found: ${despatchId}`);
+        if (!result.Item) return notFound(`Despatch advice not found: ${despatchAdviceId}`);
 
         return ok(unmarshall(result.Item));
     } catch (err: any) {
@@ -1010,7 +1011,7 @@ export async function exportDespatchAdviceAsUblXml(despatchAdviceId: string) {
 
 export async function updateDespatchAdvice(
     event: any,
-    documentId: string,
+    despatchAdviceId: string,
     sessionId: string | undefined
 ) {
     // authorisation: session must exist
@@ -1037,20 +1038,8 @@ export async function updateDespatchAdvice(
         };
     }
 
-    // ensure path ID and body ID are consistent (when both provided)
-    const bodyDocId = body.documentId ?? body.documentID;
-    if (bodyDocId != null && String(bodyDocId) !== documentId) {
-        return {
-            statusCode: 400,
-            body: JSON.stringify({
-                error: "BadRequest",
-                message: "documentId in path and body must match",
-            }),
-        };
-    }
-
-    // always use the path parameter as the canonical documentId
-    body.documentId = documentId;
+    // always use the path parameter as the canonical despatchAdviceId
+    body.despatchAdviceId = despatchAdviceId;
     if ("documentID" in body) delete body.documentID;
 
     // validate required fields according to swagger schema
@@ -1066,17 +1055,15 @@ export async function updateDespatchAdvice(
     }
 
     try {
-        // look up existing item by documentId
-        const scanResult = await dynamo.send(
-            new ScanCommand({
+        // look up existing item by despatchAdviceId
+        const result = await dynamo.send(
+            new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                FilterExpression: "documentId = :d",
-                ExpressionAttributeValues: marshall({ ":d": documentId }),
-                Limit: 1,
+                Key: marshall({ despatchAdviceId }),
             })
         );
 
-        if (!scanResult.Items || scanResult.Items.length === 0) {
+        if (!result.Item) {
             return {
                 statusCode: 404,
                 body: JSON.stringify({
@@ -1086,7 +1073,7 @@ export async function updateDespatchAdvice(
             };
         }
 
-        const existing = unmarshall(scanResult.Items[0]) as any;
+        const existing = unmarshall(result.Item) as any;
 
         // optional: simple ownership check — only allow sender to update
         if (existing.senderId && existing.senderId !== body.senderId) {
@@ -1133,7 +1120,7 @@ export async function updateDespatchAdvice(
 
 export async function deleteDespatchAdvice(
     event: any,
-    documentId: string,
+    despatchAdviceId: string,
     sessionId: string | undefined
 ) {
     // authorisation: session must exist
@@ -1149,17 +1136,15 @@ export async function deleteDespatchAdvice(
     }
 
     try {
-        // find the item by documentId
-        const scanResult = await dynamo.send(
-            new ScanCommand({
+        // find the item by despatchAdviceId
+        const result = await dynamo.send(
+            new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                FilterExpression: "documentId = :d",
-                ExpressionAttributeValues: marshall({ ":d": documentId }),
-                Limit: 1,
+                Key: marshall({ despatchAdviceId }),
             })
         );
 
-        if (!scanResult.Items || scanResult.Items.length === 0) {
+        if (!result.Item) {
             return {
                 statusCode: 404,
                 body: JSON.stringify({
@@ -1169,7 +1154,7 @@ export async function deleteDespatchAdvice(
             };
         }
 
-        const existing = unmarshall(scanResult.Items[0]) as any;
+        const existing = unmarshall(result.Item) as any;
 
         // optional: only allow sender to delete
         if (existing.senderId && existing.senderId !== clientId) {
@@ -1211,14 +1196,14 @@ export async function deleteDespatchAdvice(
 
 /**
  * Cancels the fulfilment of a despatch advice.
- * POST /despatch-advices/{despatchId}/fulfilment-cancellation
+ * POST /despatch-advices/{despatchAdviceId}/fulfilment-cancellation
  */
-export async function cancelFulfilment(event: any, despatchId: string) {
+export async function cancelFulfilment(event: any, despatchAdviceId: string) {
     try {
         const result = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Key: marshall({ despatchAdviceId: despatchId }),
+                Key: marshall({ despatchAdviceId }),
             })
         );
 
@@ -1233,7 +1218,7 @@ export async function cancelFulfilment(event: any, despatchId: string) {
         await dynamo.send(
             new UpdateItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
-                Key: marshall({ despatchAdviceId: despatchId }),
+                Key: marshall({ despatchAdviceId }),
                 UpdateExpression: "SET #s = :s",
                 ExpressionAttributeNames: { "#s": "status" },
                 ExpressionAttributeValues: marshall({ ":s": "FULFILMENT_CANCELLED" }),

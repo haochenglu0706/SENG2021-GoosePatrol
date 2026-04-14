@@ -60,6 +60,35 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /clients/{username}/client-id:
+    get:
+      tags: [Auth]
+      summary: Get client ID by username
+      x-subtitle: version1
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          example: johndoe
+      responses:
+        '200':
+          description: Client ID found
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [clientId]
+                properties:
+                  clientId:
+                    type: string
+                    example: "c12345"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /sessions:
     post:
       tags: [Auth]

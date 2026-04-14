@@ -292,6 +292,60 @@ export async function register(event: any) {
   };
 }
 
+export async function getClientIdByUsername(event: any) {
+  const username = event.pathParameters?.username;
+  if (typeof username !== "string" || !username.trim()) {
+    return {
+      statusCode: 400,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        error: "BadRequest",
+        message: "username is required",
+      }),
+    };
+  }
+
+  const trimmedUsername = username.trim();
+  const queryResult = await dynamo.send(
+    new QueryCommand({
+      TableName: CLIENTS_TABLE,
+      IndexName: USERNAME_INDEX,
+      KeyConditionExpression: "username = :u",
+      ExpressionAttributeValues: marshall({ ":u": trimmedUsername }),
+      Limit: 1,
+    })
+  );
+
+  if (!queryResult.Items || queryResult.Items.length === 0) {
+    return {
+      statusCode: 404,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        error: "NotFound",
+        message: "Client not found",
+      }),
+    };
+  }
+
+  const { clientId } = unmarshall(queryResult.Items[0]!) as { clientId?: string };
+  if (typeof clientId !== "string" || !clientId.trim()) {
+    return {
+      statusCode: 404,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        error: "NotFound",
+        message: "Client not found",
+      }),
+    };
+  }
+
+  return {
+    statusCode: 200,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({ clientId }),
+  };
+}
+
 export async function logout(event: any) {
   const sessionId =
     event.pathParameters?.sessionId ?? event.pathParameters?.sessionid;
