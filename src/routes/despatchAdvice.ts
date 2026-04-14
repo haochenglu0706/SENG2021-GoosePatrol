@@ -663,7 +663,7 @@ export async function createDespatchAdvice(event: any) {
                 ConditionExpression: "attribute_not_exists(documentId)",
             })
         );
-        return ok(item, 201);
+        return ok({despatchAdviceId: item.despatchAdviceId}, 201);
     } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
             return conflict(`A despatch advice with documentId '${String(body.documentId)}' already exists`);
