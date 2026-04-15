@@ -41,6 +41,7 @@ export async function route(event: any) {
       username: clientIdByUsernameMatch[1],
     };
     return auth.getClientIdByUsername(event);
+  }
   if (method === "GET" && path === "/clients") {
     return auth.listClients(event);
   }
