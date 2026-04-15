@@ -344,6 +344,7 @@ export async function getClientIdByUsername(event: any) {
     headers: CORS_HEADERS,
     body: JSON.stringify({ clientId }),
   };
+}
 /**
  * GET /clients — returns all registered users (username + clientId only).
  * Requires a valid session.

@@ -335,7 +335,7 @@ export default function EditDespatchPage() {
     try {
       const body = buildPutBody(form, original);
       await apiFetch(
-        `/despatch-advices/${encodeURIComponent(docId(original))}`,
+        `/despatch-advices/${encodeURIComponent(despatchId)}`,
         { method: "PUT", body: JSON.stringify(body) },
         sessionId
       );
