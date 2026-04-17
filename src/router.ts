@@ -1,6 +1,7 @@
 import * as auth from "./routes/auth.js";
 import * as despatch from "./routes/despatchAdvice.js";
 import * as receipt from "./routes/receiptAdvice.js";
+import * as orders from "./routes/orders.js";
 import * as health from "./routes/health.js";
 import * as docs from "./routes/docs.js";
 import { CORS_HEADERS } from "./cors.js";
@@ -144,6 +145,37 @@ export async function route(event: any) {
       receiptAdviceId: receiptAdviceGetMatch[1],
     };
     return receipt.getReceiptAdvice(event);
+  }
+
+  // ORDERS ROUTES (proxy to OrderMS v1 API)
+
+  if (method === "GET" && path === "/orders") {
+    return orders.listOrders(event);
+  }
+
+  if (method === "POST" && path === "/orders") {
+    return orders.createOrder(event);
+  }
+
+  // GET /orders/{orderId}/xml  — must be matched BEFORE /orders/{orderId}
+  const orderXmlMatch = path.match(/^\/orders\/([^/]+)\/xml$/);
+  if (method === "GET" && orderXmlMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      orderId: orderXmlMatch[1],
+    };
+    return orders.getOrderXml(event);
+  }
+
+  const orderIdMatch = path.match(/^\/orders\/([^/]+)$/);
+  if (orderIdMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      orderId: orderIdMatch[1],
+    };
+    if (method === "GET") return orders.getOrder(event);
+    if (method === "PUT") return orders.updateOrder(event);
+    if (method === "DELETE") return orders.deleteOrder(event);
   }
 
   // DOCS ROUTE — redirect to Swagger UI

@@ -6,6 +6,45 @@ import { dynamo, CLIENTS_TABLE, SESSIONS_TABLE } from "../db.js";
 import { CORS_HEADERS } from "../cors.js";
 
 const USERNAME_INDEX = "username-index";
+const ORDERMS_BASE = process.env.ORDERMS_BASE_URL ?? "https://api.orderms.tech";
+
+async function orderMsLogin(email: string, password: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${ORDERMS_BASE}/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { token?: string };
+      return data.token ?? null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function orderMsRegister(
+  email: string,
+  password: string,
+  nameFirst: string
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${ORDERMS_BASE}/v1/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, nameFirst, nameLast: nameFirst }),
+    });
+    if (res.ok || res.status === 201) {
+      const data = (await res.json()) as { token?: string };
+      return data.token ?? null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function isPasswordWeak(password: string): boolean {
   if (password.length < 8) return true;
@@ -174,12 +213,20 @@ export async function login(event: any) {
     })
   );
 
+  // Attempt OrderMS login; if user doesn't exist there yet, auto-register then retry
+  let orderMsToken = await orderMsLogin(email, password);
+  if (!orderMsToken) {
+    await orderMsRegister(email, password, trimmedUsername);
+    orderMsToken = await orderMsLogin(email, password);
+  }
+
   return {
     statusCode: 201,
     headers: CORS_HEADERS,
     body: JSON.stringify({
       sessionId: sessionId,
       clientId: clientId,
+      ...(orderMsToken ? { orderMsToken } : {}),
     }),
   };
 }
@@ -280,6 +327,9 @@ export async function register(event: any) {
       }),
     })
   );
+
+  // Best-effort: also register on OrderMS so a token is ready at first login
+  await orderMsRegister(email.trim(), password, trimmedUsername);
 
   return {
     statusCode: 201,

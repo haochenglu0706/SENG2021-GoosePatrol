@@ -12,12 +12,14 @@ const LS_SESSION = "gp_session";
 const LS_CLIENT = "gp_clientId";
 const LS_USER = "gp_username";
 const LS_EMAIL = "gp_email";
+const LS_ORDERMS_TOKEN = "orderms_token";
 
 export type AuthState = {
   sessionId: string | null;
   clientId: string | null;
   username: string | null;
   email: string | null;
+  orderMsToken: string | null;
 };
 
 type AuthContextValue = AuthState & {
@@ -40,6 +42,7 @@ function readInitial(): AuthState {
     clientId: localStorage.getItem(LS_CLIENT),
     username: localStorage.getItem(LS_USER),
     email: localStorage.getItem(LS_EMAIL),
+    orderMsToken: localStorage.getItem(LS_ORDERMS_TOKEN),
   };
 }
 
@@ -55,6 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(LS_USER);
     if (s.email) localStorage.setItem(LS_EMAIL, s.email);
     else localStorage.removeItem(LS_EMAIL);
+    if (s.orderMsToken) localStorage.setItem(LS_ORDERMS_TOKEN, s.orderMsToken);
+    else localStorage.removeItem(LS_ORDERMS_TOKEN);
   }, []);
 
   const setSessionFromCredentials = useCallback(
@@ -64,16 +69,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clientId,
         username,
         email: email ?? state.email,
+        orderMsToken: state.orderMsToken,
       };
       setState(next);
       persist(next);
     },
-    [persist, state.email]
+    [persist, state.email, state.orderMsToken]
   );
 
   const login = useCallback(
     async (username: string, password: string, email: string) => {
-      const res = await apiFetch<{ sessionId: string; clientId: string }>("/sessions", {
+      const res = await apiFetch<{
+        sessionId: string;
+        clientId: string;
+        orderMsToken?: string;
+      }>("/sessions", {
         method: "POST",
         body: JSON.stringify({ username, password, email }),
       });
@@ -82,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clientId: res.clientId,
         username: username.trim(),
         email: email.trim(),
+        orderMsToken: res.orderMsToken ?? null,
       };
       setState(next);
       persist(next);
@@ -115,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clientId: null,
       username: null,
       email: null,
+      orderMsToken: null,
     };
     setState(cleared);
     persist(cleared);

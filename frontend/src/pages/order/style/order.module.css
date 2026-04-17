@@ -1,3 +1,48 @@
 .page {
-  max-width: 900px;
+  max-width: 1100px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.centerMuted {
+  text-align: center;
+  padding: 32px;
+  color: var(--muted);
+}
+
+.editor {
+  width: 100%;
+  min-height: 360px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.editor:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.rawJson {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text);
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre;
 }

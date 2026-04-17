@@ -8,6 +8,7 @@ import DespatchCreatePage from "./pages/despatch/create";
 import DespatchViewPage from "./pages/despatch/view";
 import DespatchStatusPage from "./pages/despatch/status";
 import OrdersPage from "./pages/order/index";
+import OrderCreatePage from "./pages/order/create";
 import InvoicesPage from "./pages/invoices/index";
 import ProfilePage from "./pages/profile/index";
 import CreateReceiptAdvicePage from "./pages/receiptAdvice/createReceiptAdvice";
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/app" element={<AppShell />}>
           <Route index element={<Navigate to="despatch/view" replace />} />
           <Route path="orders" element={<OrdersPage />} />
+          <Route path="orders/create" element={<OrderCreatePage />} />
           <Route path="despatch/create" element={<DespatchCreatePage />} />
           <Route path="despatch/view" element={<DespatchViewPage />} />
           <Route path="despatch/status" element={<DespatchStatusPage />} />

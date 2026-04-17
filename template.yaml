@@ -24,7 +24,7 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 15
     Tracing: Active
     LoggingConfig:
       LogFormat: JSON
@@ -32,7 +32,7 @@ Globals:
     TracingEnabled: true
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,sessionId'"
+      AllowHeaders: "'Content-Type,sessionId,orderMsToken'"
       AllowOrigin: "'*'"
 
 Resources:
@@ -129,7 +129,39 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}/receipt-advices
             Method: post
-        # documentation and other 
+        # Orders routes (proxy to OrderMS v1 API)
+        ListOrders:
+          Type: Api
+          Properties:
+            Path: /orders
+            Method: get
+        CreateOrder:
+          Type: Api
+          Properties:
+            Path: /orders
+            Method: post
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}
+            Method: get
+        UpdateOrder:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}
+            Method: put
+        DeleteOrder:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}
+            Method: delete
+        GetOrderXml:
+          Type: Api
+          Properties:
+            Path: /orders/{orderId}/xml
+            Method: get
+
+        # documentation and other
         GetHealth:
           Type: Api
           Properties:
