@@ -221,6 +221,7 @@ export default function OrdersPage() {
   const [toast, setToast] = useState("");
   const [selected, setSelected] = useState<OrderRecord | null>(null);
   const [editing, setEditing] = useState<OrderRecord | null>(null);
+  const [showToken, setShowToken] = useState(false);
 
   const setBusyFor = (id: string, val: string | undefined) =>
     setBusy((b) => ({ ...b, [id]: val }));
@@ -352,6 +353,32 @@ export default function OrdersPage() {
               <div style={{ fontSize: 11, color: "var(--green)", marginTop: 4 }}>
                 ✓ Token active (auto-generated)
               </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ marginTop: 8, fontSize: 12 }}
+                onClick={() => setShowToken((v) => !v)}
+              >
+                {showToken ? "Hide token" : "View token"}
+              </button>
+              {showToken && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "8px 10px",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontFamily: "var(--mono)",
+                    fontSize: 11,
+                    wordBreak: "break-all",
+                    color: "var(--text)",
+                    userSelect: "all",
+                  }}
+                >
+                  {authToken}
+                </div>
+              )}
             </>
           ) : (
             <>
