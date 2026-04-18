@@ -220,6 +220,21 @@ export async function login(event: any) {
     orderMsToken = await orderMsLogin(email, password);
   }
 
+  if (orderMsToken) {
+    await dynamo.send(
+      new PutItemCommand({
+        TableName: CLIENTS_TABLE,
+        Item: marshall({
+          clientId,
+          username: trimmedUsername,
+          passwordHash,
+          email: storedEmail,
+          orderMsToken,
+        }),
+      })
+    );
+  }
+
   return {
     statusCode: 201,
     headers: CORS_HEADERS,

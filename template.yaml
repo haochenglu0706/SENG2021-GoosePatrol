@@ -71,6 +71,11 @@ Resources:
           Properties:
             Path: /clients/{username}/client-id
             Method: get
+        ListClientOrders:
+          Type: Api
+          Properties:
+            Path: /clients/{username}/orders
+            Method: get
 
         # DespatchAdvice routes
         ListDespatchAdvices:
