@@ -1,5 +1,24 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+
+function useTheme() {
+  const [theme, setThemeState] = useState<"dark" | "light">(() => {
+    const saved = localStorage.getItem("theme");
+    const initial = saved === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", initial);
+    return initial;
+  });
+
+  const toggle = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    setThemeState(next);
+  };
+
+  return { theme, toggle };
+}
 
 const NAV = [
   { to: "/app/orders", id: "orders", label: "Orders", icon: "📋" },
@@ -12,6 +31,7 @@ const NAV = [
 export function Sidebar() {
   const { pathname } = useLocation();
   const { sessionId, username, logout } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   return (
     <aside className="sidebar">
@@ -50,6 +70,10 @@ export function Sidebar() {
             {sessionId ? `${sessionId.slice(0, 24)}…` : ""}
           </span>
         </div>
+        <button type="button" className="theme-toggle" onClick={toggleTheme}>
+          {theme === "dark" ? "☀ " : "☾ "}
+          <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+        </button>
         <button type="button" className="logout-btn" onClick={() => void logout()}>
           ↩ <span>Log Out</span>
         </button>

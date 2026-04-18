@@ -13,6 +13,7 @@
   --surface: #0d1117;
   --border: #21262d;
   --border2: #30363d;
+  --surface-alt: #0d1117;
   --text: #f0f6fc;
   --muted: #8b949e;
   --dim: #484f58;
@@ -23,6 +24,22 @@
   --blue: #58a6ff;
   --mono: "IBM Plex Mono", monospace;
   --display: "Syne", sans-serif;
+}
+
+[data-theme="light"] {
+  --bg: #BAD2ED;
+  --surface: #ffffff;
+  --surface-alt: #C7D2DD;
+  --border: #a3bdd4;
+  --border2: #8cabc4;
+  --text: #1a2a3a;
+  --muted: #4a5a6a;
+  --dim: #7a8a9a;
+  --accent: #e06010;
+  --accent2: #c85000;
+  --green: #1a8a3a;
+  --red: #d03030;
+  --blue: #2070cc;
 }
 
 html,
@@ -58,7 +75,7 @@ body {
 .sidebar {
   width: 220px;
   min-width: 220px;
-  background: var(--surface);
+  background: var(--surface-alt);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -142,11 +159,11 @@ a.nav-item {
   font-family: var(--mono);
 }
 .nav-item:hover {
-  background: #ffffff08;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
   color: var(--text);
 }
 .nav-item.active {
-  background: #f9731618;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
 }
 .nav-item.active .nav-icon {
@@ -190,6 +207,23 @@ a.nav-item {
   border-color: var(--red);
   color: var(--red);
 }
+.theme-toggle {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: all 0.12s;
+  margin-bottom: 6px;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 .main-content {
   flex: 1;
@@ -204,7 +238,7 @@ a.nav-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--surface);
+  background: var(--surface-alt);
   flex-shrink: 0;
 }
 .topbar-title {
@@ -330,7 +364,7 @@ textarea {
 }
 .btn-primary {
   background: var(--accent);
-  color: #0d1117;
+  color: #fff;
 }
 .btn-primary:not(:disabled):hover {
   background: var(--accent2);
@@ -445,7 +479,7 @@ tbody tr:last-child {
   border-bottom: none;
 }
 tbody tr:hover {
-  background: #ffffff05;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 td {
   padding: 11px 12px;
@@ -463,7 +497,7 @@ td.mono {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -710,7 +744,7 @@ a.tab {
   align-items: center;
 }
 .tab.active {
-  background: #21262d;
+  background: var(--border);
   color: var(--text);
 }
 .tab:hover:not(.active) {
