@@ -42,9 +42,10 @@ export async function apiFetch<T = unknown>(
 export async function downloadXml(
   path: string,
   filename: string,
-  sessionId: string | null
+  sessionId: string | null,
+  extraHeaders: Record<string, string> = {}
 ): Promise<void> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...extraHeaders };
   if (sessionId) headers.sessionId = sessionId;
   const res = await fetch(`${API_BASE}${path}`, { headers });
   const text = await res.text();
