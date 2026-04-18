@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from "uuid";
 import { dynamo, CLIENTS_TABLE, SESSIONS_TABLE } from "../db.js";
 import { CORS_HEADERS } from "../cors.js";
 
+import { invoiceLogin, invoiceRegister } from "./invoices.js";
+
 const USERNAME_INDEX = "username-index";
 const ORDERMS_BASE = process.env.ORDERMS_BASE_URL ?? "https://api.orderms.tech";
 
@@ -220,17 +222,31 @@ export async function login(event: any) {
     orderMsToken = await orderMsLogin(email, password);
   }
 
-  if (orderMsToken) {
+  // Attempt Invoice API login; if user doesn't exist there yet, auto-register then retry
+  let invoiceAuth = await invoiceLogin(email, password);
+  if (!invoiceAuth) {
+    await invoiceRegister(email, password, trimmedUsername);
+    invoiceAuth = await invoiceLogin(email, password);
+  }
+
+  // Persist tokens to DynamoDB
+  const updatedFields: Record<string, any> = {
+    clientId,
+    username: trimmedUsername,
+    passwordHash,
+    email: storedEmail,
+  };
+  if (orderMsToken) updatedFields.orderMsToken = orderMsToken;
+  if (invoiceAuth) {
+    updatedFields.invoiceToken = invoiceAuth.token;
+    updatedFields.invoiceUserId = invoiceAuth.userId;
+  }
+
+  if (orderMsToken || invoiceAuth) {
     await dynamo.send(
       new PutItemCommand({
         TableName: CLIENTS_TABLE,
-        Item: marshall({
-          clientId,
-          username: trimmedUsername,
-          passwordHash,
-          email: storedEmail,
-          orderMsToken,
-        }),
+        Item: marshall(updatedFields),
       })
     );
   }
@@ -242,6 +258,7 @@ export async function login(event: any) {
       sessionId: sessionId,
       clientId: clientId,
       ...(orderMsToken ? { orderMsToken } : {}),
+      ...(invoiceAuth ? { invoiceToken: invoiceAuth.token, invoiceUserId: invoiceAuth.userId } : {}),
     }),
   };
 }
@@ -343,8 +360,9 @@ export async function register(event: any) {
     })
   );
 
-  // Best-effort: also register on OrderMS so a token is ready at first login
+  // Best-effort: also register on OrderMS and Invoice API so tokens are ready at first login
   await orderMsRegister(email.trim(), password, trimmedUsername);
+  await invoiceRegister(email.trim(), password, trimmedUsername);
 
   return {
     statusCode: 201,

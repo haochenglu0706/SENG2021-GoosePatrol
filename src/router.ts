@@ -2,6 +2,7 @@ import * as auth from "./routes/auth.js";
 import * as despatch from "./routes/despatchAdvice.js";
 import * as receipt from "./routes/receiptAdvice.js";
 import * as orders from "./routes/orders.js";
+import * as invoices from "./routes/invoices.js";
 import * as health from "./routes/health.js";
 import * as docs from "./routes/docs.js";
 import { CORS_HEADERS } from "./cors.js";
@@ -186,6 +187,66 @@ export async function route(event: any) {
     if (method === "GET") return orders.getOrder(event);
     if (method === "PUT") return orders.updateOrder(event);
     if (method === "DELETE") return orders.deleteOrder(event);
+  }
+
+  // INVOICES ROUTES (proxy to Invoice API)
+
+  if (method === "GET" && path === "/invoices") {
+    return invoices.listInvoices(event);
+  }
+
+  if (method === "POST" && path === "/invoices") {
+    return invoices.createInvoice(event);
+  }
+
+  // POST /invoices/{invoiceId}/transform
+  const invoiceTransformMatch = path.match(/^\/invoices\/([^/]+)\/transform$/);
+  if (method === "POST" && invoiceTransformMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      invoiceId: invoiceTransformMatch[1],
+    };
+    return invoices.transformInvoice(event);
+  }
+
+  // POST /invoices/{invoiceId}/validate
+  const invoiceValidateMatch = path.match(/^\/invoices\/([^/]+)\/validate$/);
+  if (method === "POST" && invoiceValidateMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      invoiceId: invoiceValidateMatch[1],
+    };
+    return invoices.validateInvoice(event);
+  }
+
+  // PUT /invoices/{invoiceId}/status
+  const invoiceStatusMatch = path.match(/^\/invoices\/([^/]+)\/status$/);
+  if (method === "PUT" && invoiceStatusMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      invoiceId: invoiceStatusMatch[1],
+    };
+    return invoices.updateInvoiceStatus(event);
+  }
+
+  // GET /invoices/{invoiceId}/xml  — must be matched BEFORE /invoices/{invoiceId}
+  const invoiceXmlMatch = path.match(/^\/invoices\/([^/]+)\/xml$/);
+  if (method === "GET" && invoiceXmlMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      invoiceId: invoiceXmlMatch[1],
+    };
+    return invoices.getInvoiceXml(event);
+  }
+
+  const invoiceIdMatch = path.match(/^\/invoices\/([^/]+)$/);
+  if (invoiceIdMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      invoiceId: invoiceIdMatch[1],
+    };
+    if (method === "GET") return invoices.getInvoice(event);
+    if (method === "DELETE") return invoices.deleteInvoice(event);
   }
 
   // DOCS ROUTE — redirect to Swagger UI

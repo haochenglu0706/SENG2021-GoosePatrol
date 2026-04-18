@@ -32,7 +32,7 @@ Globals:
     TracingEnabled: true
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,sessionId,orderMsToken'"
+      AllowHeaders: "'Content-Type,sessionId,orderMsToken,invoiceToken,invoiceUserId'"
       AllowOrigin: "'*'"
 
 Resources:
@@ -165,6 +165,53 @@ Resources:
           Properties:
             Path: /orders/{orderId}/xml
             Method: get
+
+        # Invoices routes (proxy to Invoice API)
+        ListInvoices:
+          Type: Api
+          Properties:
+            Path: /invoices
+            Method: get
+        CreateInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices
+            Method: post
+        GetInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}
+            Method: get
+        UpdateInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}
+            Method: put
+        DeleteInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}
+            Method: delete
+        GetInvoiceXml:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/xml
+            Method: get
+        TransformInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/transform
+            Method: post
+        ValidateInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/validate
+            Method: post
+        UpdateInvoiceStatus:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/status
+            Method: put
 
         # documentation and other
         GetHealth:
