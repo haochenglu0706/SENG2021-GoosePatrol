@@ -78,8 +78,8 @@ export default function DespatchCreatePage() {
     customerCountry: orderDefaults?.customerCountry ?? "AU",
     shipId: "SHIP-001",
     consId: "CONS-001",
-    delivStreet: orderDefaults?.delivStreet ?? "",
-    delivCity: orderDefaults?.delivCity ?? "",
+    delivStreet: orderDefaults?.delivStreet ?? "1 Customer Rd",
+    delivCity: orderDefaults?.delivCity ?? "Sydney",
     delivZone: orderDefaults?.delivZone ?? "2000",
     delivCountry: orderDefaults?.delivCountry ?? "AU",
     periodStart: today,
@@ -88,8 +88,8 @@ export default function DespatchCreatePage() {
     lineQty: "10",
     lineUnit: "EA",
     lineOrderRef: orderDefaults?.lineOrderRef ?? "ORD-001",
-    lineItemName: orderDefaults?.lineItemName ?? "Widget",
-    lineItemDesc: orderDefaults?.lineItemDesc ?? "A standard widget",
+    lineItemName: orderDefaults?.lineItemName ?? "",
+    lineItemDesc: orderDefaults?.lineItemDesc ?? "",
     note: orderDefaults?.note ?? "",
   });
 
