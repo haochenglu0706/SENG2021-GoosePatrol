@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, downloadXml } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
@@ -206,6 +206,7 @@ function OrderEditorModal({
 // ---------------------------------------------------------------------------
 
 export default function OrdersPage() {
+  const navigate = useNavigate();
   const { sessionId, orderMsToken: authToken } = useAuth();
   const [manualToken, setManualToken] = useState<string>(
     () => localStorage.getItem(TOKEN_KEY) ?? ""
@@ -479,6 +480,18 @@ export default function OrdersPage() {
                               disabled={!!busy[id]}
                             >
                               {busy[id] === "xml" ? <span className="spinner" /> : "↓ XML"}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{ fontSize: 11, padding: "5px 8px", color: "var(--green)" }}
+                              onClick={() =>
+                                navigate("/app/despatch/create", {
+                                  state: { fromOrder: { ...o, _fields: f } },
+                                })
+                              }
+                            >
+                              Fulfil
                             </button>
                             <button
                               type="button"

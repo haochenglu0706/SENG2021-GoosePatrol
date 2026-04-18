@@ -1,51 +1,96 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
 import styles from "./style/create.module.css";
 
+function extractOrderDefaults(loc: any) {
+  const order = loc?.state?.fromOrder;
+  if (!order) return null;
+  // order is an OrderRecord: { data?: {...}, orderId, ... } merged with _fields
+  const d = order.data ?? order;
+  const buyer = d.BuyerCustomerParty?.Party ?? {};
+  const seller = d.SellerSupplierParty?.Party ?? {};
+  const buyerAddr = buyer.PostalAddress ?? {};
+  const sellerAddr = seller.PostalAddress ?? {};
+  const firstLine = d.OrderLine?.[0]?.LineItem ?? {};
+  const item = firstLine.Item ?? {};
+  return {
+    documentId: `DA-${d.ID ?? ""}`,
+    orderRefId: d.ID ?? "",
+    note: Array.isArray(d.Note) ? d.Note.join("; ") : "",
+    // Seller ships → despatch supplier party
+    supplierName: seller.PartyName?.[0]?.Name ?? "",
+    supplierStreet: sellerAddr.StreetName ?? "",
+    supplierCity: sellerAddr.CityName ?? "",
+    supplierZone: sellerAddr.PostalZone ?? "",
+    supplierCountry: sellerAddr.Country?.IdentificationCode ?? "AU",
+    // Buyer receives → delivery customer party + delivery address
+    customerName: buyer.PartyName?.[0]?.Name ?? "",
+    customerStreet: buyerAddr.StreetName ?? "",
+    customerCity: buyerAddr.CityName ?? "",
+    customerZone: buyerAddr.PostalZone ?? "",
+    customerCountry: buyerAddr.Country?.IdentificationCode ?? "AU",
+    delivStreet: buyerAddr.StreetName ?? "",
+    delivCity: buyerAddr.CityName ?? "",
+    delivZone: buyerAddr.PostalZone ?? "",
+    delivCountry: buyerAddr.Country?.IdentificationCode ?? "AU",
+    // First line item
+    lineId: firstLine.ID ?? "LINE-1",
+    lineItemName: item.Name ?? "",
+    lineItemDesc: Array.isArray(item.Description)
+      ? item.Description.join(", ")
+      : item.Description ?? "",
+    lineOrderRef: d.ID ?? "ORD-001",
+  };
+}
+
 export default function DespatchCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { clientId, sessionId } = useAuth();
   const today = new Date().toISOString().split("T")[0];
   const future = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
 
+  const orderDefaults = extractOrderDefaults(location);
+  const fromOrder = !!orderDefaults;
+
   const [f, setF] = useState({
-    documentId: "",
+    documentId: orderDefaults?.documentId ?? "",
     receiverId: "",
     copyIndicator: false,
     issueDate: today,
     documentStatusCode: "Active",
-    orderRefId: "ORD-001",
-    supplierName: "",
-    supplierStreet: "",
-    supplierCity: "",
-    supplierZone: "2000",
-    supplierCountry: "AU",
+    orderRefId: orderDefaults?.orderRefId ?? "ORD-001",
+    supplierName: orderDefaults?.supplierName ?? "",
+    supplierStreet: orderDefaults?.supplierStreet ?? "",
+    supplierCity: orderDefaults?.supplierCity ?? "",
+    supplierZone: orderDefaults?.supplierZone ?? "2000",
+    supplierCountry: orderDefaults?.supplierCountry ?? "AU",
     contactName: "",
     contactPhone: "",
     contactEmail: "",
-    customerName: "",
-    customerStreet: "",
-    customerCity: "",
-    customerZone: "2000",
-    customerCountry: "AU",
+    customerName: orderDefaults?.customerName ?? "",
+    customerStreet: orderDefaults?.customerStreet ?? "",
+    customerCity: orderDefaults?.customerCity ?? "",
+    customerZone: orderDefaults?.customerZone ?? "2000",
+    customerCountry: orderDefaults?.customerCountry ?? "AU",
     shipId: "SHIP-001",
     consId: "CONS-001",
-    delivStreet: "",
-    delivCity: "",
-    delivZone: "2000",
-    delivCountry: "AU",
+    delivStreet: orderDefaults?.delivStreet ?? "",
+    delivCity: orderDefaults?.delivCity ?? "",
+    delivZone: orderDefaults?.delivZone ?? "2000",
+    delivCountry: orderDefaults?.delivCountry ?? "AU",
     periodStart: today,
     periodEnd: future,
-    lineId: "LINE-1",
+    lineId: orderDefaults?.lineId ?? "LINE-1",
     lineQty: "10",
     lineUnit: "EA",
-    lineOrderRef: "ORD-001",
-    lineItemName: "Widget",
-    lineItemDesc: "A standard widget",
-    note: "",
+    lineOrderRef: orderDefaults?.lineOrderRef ?? "ORD-001",
+    lineItemName: orderDefaults?.lineItemName ?? "Widget",
+    lineItemDesc: orderDefaults?.lineItemDesc ?? "A standard widget",
+    note: orderDefaults?.note ?? "",
   });
 
   const [clients, setClients] = useState<{ clientId: string; username: string }[]>([]);
@@ -203,6 +248,13 @@ export default function DespatchCreatePage() {
         <div className="card">
           <div className="card-title">New despatch advice</div>
           <div className="card-sub">Sender is fixed to your logged-in client ID.</div>
+
+          {fromOrder ? (
+            <div className="alert alert-info" style={{ marginBottom: 12 }}>
+              Pre-filled from order <strong>{orderDefaults.orderRefId}</strong>. Review
+              the fields below, select a receiver, and adjust quantities before creating.
+            </div>
+          ) : null}
 
           {err ? <div className="alert alert-err">{err}</div> : null}
           {ok ? <div className="alert alert-ok">{ok}</div> : null}
