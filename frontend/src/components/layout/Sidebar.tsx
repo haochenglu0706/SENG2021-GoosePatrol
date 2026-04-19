@@ -6,6 +6,7 @@ const NAV = [
   { to: "/app/despatch/view", id: "despatch", label: "Despatch", icon: "📦" },
   { to: "/app/receipt-advices/view", id: "receipts", label: "Receipts", icon: "🧾" },
   { to: "/app/invoices", id: "invoices", label: "Invoices", icon: "🧾" },
+  { to: "/app/translate", id: "translate", label: "Translate", icon: "🌐" },
   { to: "/app/profile", id: "profile", label: "Profile", icon: "👤" },
 ];
 

@@ -14,6 +14,8 @@ import ProfilePage from "./pages/profile/index";
 import CreateReceiptAdvicePage from "./pages/receiptAdvice/createReceiptAdvice";
 import ViewReceiptAdvicePage   from "./pages/receiptAdvice/viewReceiptAdvice";
 import EditDespatchPage from "./pages/despatch/editDespatch";
+import TranslatePage from "./pages/translate/index";
+
 
 export default function App() {
   return (
@@ -35,6 +37,7 @@ export default function App() {
           <Route path="receipt-advices/create" element={<CreateReceiptAdvicePage />} />
           <Route path="receipt-advices/view"   element={<ViewReceiptAdvicePage />} />
           <Route path="despatch/edit/:despatchId" element={<EditDespatchPage />} />
+          <Route path="translate" element={<TranslatePage />} />
         </Route>
       </Route>
 
