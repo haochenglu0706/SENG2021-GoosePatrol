@@ -161,6 +161,13 @@ Resources:
             Path: /orders/{orderId}/xml
             Method: get
 
+        # DeepL XML translation (see src/routes/translate.ts)
+        TranslateDocument:
+          Type: Api
+          Properties:
+            Path: /translate
+            Method: post
+
         # documentation and other
         GetHealth:
           Type: Api
