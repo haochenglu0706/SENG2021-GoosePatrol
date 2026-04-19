@@ -195,7 +195,7 @@ export default function TranslatePage() {
           <div>
             <h2 style={styles.title}>Translate Document</h2>
             <p style={styles.subtitle}>
-              Translate UBL despatch or order XML documents using DeepL.
+              Translate UBL despatch or order XML documents.
             </p>
           </div>
         </div>
