@@ -158,7 +158,13 @@ export default function TranslatePage() {
 
       setStatus("success");
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "An unexpected error occurred.");
+      const raw = err instanceof Error ? err.message : "An unexpected error occurred.";
+      // Browser surfaces blocked CORS / unknown host / missing API route as "Failed to fetch"
+      const message =
+        raw === "Failed to fetch"
+          ? "Could not reach the translate API. If you use the deployed backend, redeploy so POST /translate is registered in API Gateway, then try again."
+          : raw;
+      setErrorMsg(message);
       setStatus("error");
     }
   }
