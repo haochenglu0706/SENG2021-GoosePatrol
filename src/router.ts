@@ -4,6 +4,7 @@ import * as receipt from "./routes/receiptAdvice.js";
 import * as orders from "./routes/orders.js";
 import * as health from "./routes/health.js";
 import * as docs from "./routes/docs.js";
+import * as translate from "./routes/translate.js";
 import { CORS_HEADERS } from "./cors.js";
 import openapiYaml from "../swagger.yaml";
 
@@ -202,6 +203,20 @@ export async function route(event: any) {
     };
   }
 
+  return {
+    statusCode: 404,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({
+      error: "NotFound",
+      message: "Route not found",
+    }),
+  };
+
+  // TRANSLATE ROUTE
+  if (method === "POST" && path === "/translate") {
+    return translate.translateDocument(event);
+  }
+ 
   return {
     statusCode: 404,
     headers: CORS_HEADERS,
