@@ -18,6 +18,9 @@ tags:
   - name: Health
     description: Health check endpoint
     x-subtitle: version1
+  - name: Translation
+    description: Document translation (DeepL)
+    x-subtitle: version1
 
 paths:
 
@@ -136,6 +139,46 @@ paths:
           description: Session deleted
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /translate:
+    post:
+      tags: [Translation]
+      summary: Translate an XML document via DeepL
+      description: |
+        Sends XML to the DeepL API (tag handling) and returns translated XML.
+        Requires a valid session. Set `DEEPL_API_KEY` in the server environment.
+      x-subtitle: version1
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslateRequest'
+            examples:
+              despatchUbl:
+                value:
+                  xml: "<DespatchAdvice xmlns='urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2'><cbc:ID>DA-1</cbc:ID></DespatchAdvice>"
+                  sourceLang: "AUTO"
+                  targetLang: "DE"
+      responses:
+        '200':
+          description: Translated XML (same structure as input, text translated where applicable)
+          content:
+            application/xml:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Server or translation service error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /despatch-advices:
     get:
@@ -571,6 +614,23 @@ components:
         message:
           type: string
           example: "Invalid request parameters"
+
+    TranslateRequest:
+      type: object
+      required: [xml, targetLang]
+      properties:
+        xml:
+          type: string
+          description: Full XML document to translate
+        sourceLang:
+          type: string
+          default: "AUTO"
+          description: |
+            Source language (DeepL), or AUTO for auto-detect.
+        targetLang:
+          type: string
+          description: Target language code (e.g. DE, EN-GB, ZH, JA)
+          example: "EN-GB"
 
     Client:
       type: object

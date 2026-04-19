@@ -170,64 +170,12 @@ Resources:
             Path: /orders/{orderId}/xml
             Method: get
 
-        # Invoices routes (proxy to Invoice API)
-        ListInvoices:
+        # DeepL XML translation (see src/routes/translate.ts)
+        TranslateDocument:
           Type: Api
           Properties:
-            Path: /invoices
-            Method: get
-        CreateInvoice:
-          Type: Api
-          Properties:
-            Path: /invoices
+            Path: /translate
             Method: post
-        GetInvoice:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}
-            Method: get
-        UpdateInvoice:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}
-            Method: put
-        DeleteInvoice:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}
-            Method: delete
-        GetInvoiceXml:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}/xml
-            Method: get
-        TransformInvoice:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}/transform
-            Method: post
-        ValidateInvoice:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}/validate
-            Method: post
-        UpdateInvoiceStatus:
-          Type: Api
-          Properties:
-            Path: /invoices/{invoiceId}/status
-            Method: put
-
-        # Invoice reference routes
-        SaveInvoiceRef:
-          Type: Api
-          Properties:
-            Path: /invoice-references
-            Method: post
-        ListReceivedInvoiceRefs:
-          Type: Api
-          Properties:
-            Path: /invoice-references/received
-            Method: get
 
         # documentation and other
         GetHealth:
@@ -265,7 +213,8 @@ Resources:
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
           DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
           RECEIPT_ADVICES_TABLE_NAME: !Ref ReceiptAdvicesTableName
-          INVOICE_REFS_TABLE_NAME: !Ref InvoiceRefsTableName
+          DEEPL_API_KEY: "89d88353-943e-414f-904e-00d312f3870d:fx"
+          DEEPL_API_URL: "https://api-free.deepl.com/v2"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
