@@ -5,6 +5,7 @@ import * as orders from "./routes/orders.js";
 import * as invoices from "./routes/invoices.js";
 import * as health from "./routes/health.js";
 import * as docs from "./routes/docs.js";
+import * as translate from "./routes/translate.js";
 import { CORS_HEADERS } from "./cors.js";
 import openapiYaml from "../swagger.yaml";
 
@@ -282,6 +283,11 @@ export async function route(event: any) {
     };
   }
 
+  // TRANSLATE ROUTE
+  if (method === "POST" && path === "/translate") {
+    return translate.translateDocument(event);
+  }
+
   return {
     statusCode: 404,
     headers: CORS_HEADERS,
@@ -291,4 +297,3 @@ export async function route(event: any) {
     }),
   };
 }
-
