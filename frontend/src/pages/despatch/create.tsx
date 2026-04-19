@@ -78,8 +78,8 @@ export default function DespatchCreatePage() {
     customerCountry: orderDefaults?.customerCountry ?? "AU",
     shipId: "SHIP-001",
     consId: "CONS-001",
-    delivStreet: orderDefaults?.delivStreet ?? "",
-    delivCity: orderDefaults?.delivCity ?? "",
+    delivStreet: orderDefaults?.delivStreet ?? "1 Customer Rd",
+    delivCity: orderDefaults?.delivCity ?? "Sydney",
     delivZone: orderDefaults?.delivZone ?? "2000",
     delivCountry: orderDefaults?.delivCountry ?? "AU",
     periodStart: today,
@@ -88,8 +88,8 @@ export default function DespatchCreatePage() {
     lineQty: "10",
     lineUnit: "EA",
     lineOrderRef: orderDefaults?.lineOrderRef ?? "ORD-001",
-    lineItemName: orderDefaults?.lineItemName ?? "Widget",
-    lineItemDesc: orderDefaults?.lineItemDesc ?? "A standard widget",
+    lineItemName: orderDefaults?.lineItemName ?? "",
+    lineItemDesc: orderDefaults?.lineItemDesc ?? "",
     note: orderDefaults?.note ?? "",
   });
 
@@ -98,11 +98,16 @@ export default function DespatchCreatePage() {
   const [receiverOpen, setReceiverOpen] = useState(false);
   const receiverRef = useRef<HTMLDivElement>(null);
 
+  // Orders for the selected receiver
+  const [receiverOrders, setReceiverOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [preOrderSnapshot, setPreOrderSnapshot] = useState<typeof f | null>(null);
+
   useEffect(() => {
     if (!sessionId) return;
     apiFetch<{ clientId: string; username: string }[]>("/clients", {}, sessionId)
       .then((data) => {
-        console.log("GET /clients response:", data);
         setClients(data.filter((c) => c.clientId !== clientId));
       })
       .catch((e: Error) => {
@@ -110,6 +115,81 @@ export default function DespatchCreatePage() {
         setClientsErr(e.message);
       });
   }, [sessionId, clientId]);
+
+  // Fetch orders when receiver changes
+  useEffect(() => {
+    if (!f.receiverId || !sessionId) {
+      setReceiverOrders([]);
+      setSelectedOrderId(null);
+      return;
+    }
+    setOrdersLoading(true);
+    setReceiverOrders([]);
+    setSelectedOrderId(null);
+    apiFetch<any>(`/clients/${encodeURIComponent(f.receiverId)}/orders`, {}, sessionId)
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setReceiverOrders(list);
+      })
+      .catch(() => {
+        setReceiverOrders([]);
+      })
+      .finally(() => setOrdersLoading(false));
+  }, [f.receiverId, sessionId]);
+
+  function applyOrder(order: any) {
+    const d = order.data ?? order;
+    const id = order.orderId ?? d.ID ?? null;
+
+    // Deselect: restore the snapshot
+    if (selectedOrderId === id) {
+      if (preOrderSnapshot) setF(preOrderSnapshot);
+      setPreOrderSnapshot(null);
+      setSelectedOrderId(null);
+      return;
+    }
+
+    // Save current form state before overwriting (only if no order is selected yet)
+    if (!selectedOrderId) {
+      setPreOrderSnapshot({ ...f });
+    }
+
+    const buyer = d.BuyerCustomerParty?.Party ?? {};
+    const seller = d.SellerSupplierParty?.Party ?? {};
+    const buyerAddr = buyer.PostalAddress ?? {};
+    const sellerAddr = seller.PostalAddress ?? {};
+    const firstLine = d.OrderLine?.[0]?.LineItem ?? {};
+    const item = firstLine.Item ?? {};
+    const base = preOrderSnapshot ?? f;
+
+    setF({
+      ...base,
+      documentId: `DA-${d.ID ?? ""}`,
+      orderRefId: d.ID ?? "",
+      note: Array.isArray(d.Note) ? d.Note.join("; ") : d.Note ?? base.note,
+      supplierName: seller.PartyName?.[0]?.Name ?? base.supplierName,
+      supplierStreet: sellerAddr.StreetName ?? base.supplierStreet,
+      supplierCity: sellerAddr.CityName ?? base.supplierCity,
+      supplierZone: sellerAddr.PostalZone ?? base.supplierZone,
+      supplierCountry: sellerAddr.Country?.IdentificationCode ?? base.supplierCountry,
+      customerName: buyer.PartyName?.[0]?.Name ?? base.customerName,
+      customerStreet: buyerAddr.StreetName ?? base.customerStreet,
+      customerCity: buyerAddr.CityName ?? base.customerCity,
+      customerZone: buyerAddr.PostalZone ?? base.customerZone,
+      customerCountry: buyerAddr.Country?.IdentificationCode ?? base.customerCountry,
+      delivStreet: buyerAddr.StreetName ?? base.delivStreet,
+      delivCity: buyerAddr.CityName ?? base.delivCity,
+      delivZone: buyerAddr.PostalZone ?? base.delivZone,
+      delivCountry: buyerAddr.Country?.IdentificationCode ?? base.delivCountry,
+      lineId: firstLine.ID ?? base.lineId,
+      lineItemName: item.Name ?? base.lineItemName,
+      lineItemDesc: Array.isArray(item.Description)
+        ? item.Description.join(", ")
+        : item.Description ?? base.lineItemDesc,
+      lineOrderRef: d.ID ?? base.lineOrderRef,
+    });
+    setSelectedOrderId(id);
+  }
 
   // Close receiver dropdown on outside click
   useEffect(() => {
@@ -322,6 +402,50 @@ export default function DespatchCreatePage() {
               </div>
             </div>
           </div>
+          {f.receiverId && (
+            <div className={styles.orderPicker}>
+              <div className={styles.orderPickerTitle}>
+                Orders from {clients.find((c) => c.clientId === f.receiverId)?.username ?? "this user"}
+              </div>
+              {ordersLoading ? (
+                <div className={styles.orderPickerEmpty}><span className="spinner" /> Loading orders…</div>
+              ) : receiverOrders.length === 0 ? (
+                <div className={styles.orderPickerEmpty}>No orders found for this user</div>
+              ) : (
+                <div className={styles.orderList}>
+                  {receiverOrders.map((o: any) => {
+                    const d = o.data ?? o;
+                    const id = o.orderId ?? d.ID ?? "?";
+                    const buyer = d.BuyerCustomerParty?.Party?.PartyName?.[0]?.Name ?? "—";
+                    const seller = d.SellerSupplierParty?.Party?.PartyName?.[0]?.Name ?? "—";
+                    const lines = d.OrderLine?.length ?? 0;
+                    const isSelected = selectedOrderId === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`${styles.orderCard} ${isSelected ? styles.orderCardActive : ""}`}
+                        onClick={() => applyOrder(o)}
+                      >
+                        <div className={styles.orderCardId}>{d.ID ?? id}</div>
+                        <div className={styles.orderCardMeta}>
+                          {buyer} → {seller} · {lines} line{lines !== 1 ? "s" : ""}
+                        </div>
+                        {d.IssueDate && <div className={styles.orderCardDate}>{d.IssueDate}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedOrderId && (
+            <div className="alert alert-info" style={{ marginBottom: 12 }}>
+              Auto-filled from order <strong>{selectedOrderId}</strong>. Review and adjust fields below before creating.
+            </div>
+          )}
+
           <div className="field-row">
             <div className="field">
               <label>Sender ID (locked)</label>

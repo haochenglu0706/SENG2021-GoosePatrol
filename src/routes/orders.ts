@@ -1,4 +1,7 @@
+import { GetItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { CORS_HEADERS } from "../cors.js";
+import { dynamo, CLIENTS_TABLE } from "../db.js";
 import { verifySession } from "./auth.js";
 
 /**
@@ -244,4 +247,55 @@ export async function getOrderXml(event: any) {
     orderMsToken: auth.orderMsToken,
     expectXml: true,
   });
+}
+
+// ---------------------------------------------------------------------------
+// GET /clients/{clientId}/orders  → fetch orders for a specific client
+// using their stored OrderMS token
+// ---------------------------------------------------------------------------
+export async function listOrdersForClient(event: any) {
+  const auth = await authorise(event);
+  if (!auth.ok) return auth.response;
+
+  const param: string | undefined = event.pathParameters?.clientIdOrUsername;
+  if (!param) return badRequest("clientId or username path parameter is required");
+
+  // Try direct lookup by clientId first
+  let item = (
+    await dynamo.send(
+      new GetItemCommand({
+        TableName: CLIENTS_TABLE,
+        Key: marshall({ clientId: param }),
+      })
+    )
+  ).Item;
+
+  // If not found, try lookup by username via GSI
+  if (!item) {
+    const q = await dynamo.send(
+      new QueryCommand({
+        TableName: CLIENTS_TABLE,
+        IndexName: "username-index",
+        KeyConditionExpression: "username = :u",
+        ExpressionAttributeValues: marshall({ ":u": param }),
+        Limit: 1,
+      })
+    );
+    item = q.Items?.[0];
+  }
+
+  if (!item) {
+    return badRequest("Client not found");
+  }
+
+  const client = unmarshall(item) as { orderMsToken?: string };
+  if (!client.orderMsToken) {
+    return {
+      statusCode: 200,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify([]),
+    };
+  }
+
+  return proxy("GET", "/v1/orders", { orderMsToken: client.orderMsToken });
 }

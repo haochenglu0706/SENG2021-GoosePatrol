@@ -48,6 +48,16 @@ export async function route(event: any) {
     return auth.listClients(event);
   }
 
+  // GET /clients/{clientId}/orders — list orders for a specific client
+  const clientOrdersMatch = path.match(/^\/clients\/([^/]+)\/orders$/);
+  if (method === "GET" && clientOrdersMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      clientIdOrUsername: clientOrdersMatch[1],
+    };
+    return orders.listOrdersForClient(event);
+  }
+
   // DELETE /sessions/{sessionId} — logout
   const sessionDeleteMatch = path.match(/^\/sessions\/([^/]+)$/);
   if (method === "DELETE" && sessionDeleteMatch) {
