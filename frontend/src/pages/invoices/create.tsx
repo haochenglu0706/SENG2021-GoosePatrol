@@ -113,7 +113,6 @@ export default function InvoiceCreatePage() {
 
     const supplier = desp.despatchSupplierParty?.party;
     const customer = desp.deliveryCustomerParty?.party;
-    const firstLine = desp.despatchLines?.[0];
     const base = preSnapshot ?? f;
 
     setF({

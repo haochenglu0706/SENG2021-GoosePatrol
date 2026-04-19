@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(next);
       persist(next);
     },
-    [persist, state.email, state.orderMsToken]
+    [persist, state.email, state.orderMsToken, state.invoiceToken, state.invoiceUserId]
   );
 
   const login = useCallback(
