@@ -13,6 +13,8 @@ const LS_CLIENT = "gp_clientId";
 const LS_USER = "gp_username";
 const LS_EMAIL = "gp_email";
 const LS_ORDERMS_TOKEN = "orderms_token";
+const LS_INVOICE_TOKEN = "invoice_token";
+const LS_INVOICE_USERID = "invoice_userId";
 
 export type AuthState = {
   sessionId: string | null;
@@ -20,6 +22,8 @@ export type AuthState = {
   username: string | null;
   email: string | null;
   orderMsToken: string | null;
+  invoiceToken: string | null;
+  invoiceUserId: string | null;
 };
 
 type AuthContextValue = AuthState & {
@@ -43,6 +47,8 @@ function readInitial(): AuthState {
     username: localStorage.getItem(LS_USER),
     email: localStorage.getItem(LS_EMAIL),
     orderMsToken: localStorage.getItem(LS_ORDERMS_TOKEN),
+    invoiceToken: localStorage.getItem(LS_INVOICE_TOKEN),
+    invoiceUserId: localStorage.getItem(LS_INVOICE_USERID),
   };
 }
 
@@ -60,6 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(LS_EMAIL);
     if (s.orderMsToken) localStorage.setItem(LS_ORDERMS_TOKEN, s.orderMsToken);
     else localStorage.removeItem(LS_ORDERMS_TOKEN);
+    if (s.invoiceToken) localStorage.setItem(LS_INVOICE_TOKEN, s.invoiceToken);
+    else localStorage.removeItem(LS_INVOICE_TOKEN);
+    if (s.invoiceUserId) localStorage.setItem(LS_INVOICE_USERID, s.invoiceUserId);
+    else localStorage.removeItem(LS_INVOICE_USERID);
   }, []);
 
   const setSessionFromCredentials = useCallback(
@@ -70,11 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username,
         email: email ?? state.email,
         orderMsToken: state.orderMsToken,
+        invoiceToken: state.invoiceToken,
+        invoiceUserId: state.invoiceUserId,
       };
       setState(next);
       persist(next);
     },
-    [persist, state.email, state.orderMsToken]
+    [persist, state.email, state.orderMsToken, state.invoiceToken, state.invoiceUserId]
   );
 
   const login = useCallback(
@@ -83,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionId: string;
         clientId: string;
         orderMsToken?: string;
+        invoiceToken?: string;
+        invoiceUserId?: string;
       }>("/sessions", {
         method: "POST",
         body: JSON.stringify({ username, password, email }),
@@ -93,6 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: username.trim(),
         email: email.trim(),
         orderMsToken: res.orderMsToken ?? null,
+        invoiceToken: res.invoiceToken ?? null,
+        invoiceUserId: res.invoiceUserId ?? null,
       };
       setState(next);
       persist(next);
@@ -127,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username: null,
       email: null,
       orderMsToken: null,
+      invoiceToken: null,
+      invoiceUserId: null,
     };
     setState(cleared);
     persist(cleared);

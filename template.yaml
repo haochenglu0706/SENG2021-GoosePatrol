@@ -21,6 +21,10 @@ Parameters:
     Type: String
     Default: ReceiptAdvices
     Description: Name of the existing ReceiptAdvices DynamoDB table
+  InvoiceRefsTableName:
+    Type: String
+    Default: InvoiceReferences
+    Description: Name of the InvoiceReferences DynamoDB table
 
 Globals:
   Function:
@@ -32,7 +36,7 @@ Globals:
     TracingEnabled: true
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,sessionId,orderMsToken'"
+      AllowHeaders: "'Content-Type,sessionId,orderMsToken,invoiceToken,invoiceUserId'"
       AllowOrigin: "'*'"
 
 Resources:
@@ -220,6 +224,8 @@ Resources:
             TableName: !Ref SessionsTableName
         - DynamoDBCrudPolicy:
             TableName: !Ref ReceiptAdvicesTableName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoiceRefsTableName
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -262,6 +268,37 @@ Resources:
         - IndexName: submitter-index
           KeySchema:
             - AttributeName: submitterId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  InvoiceRefsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref InvoiceRefsTableName
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+      AttributeDefinitions:
+        - AttributeName: invoiceId
+          AttributeType: S
+        - AttributeName: receiverId
+          AttributeType: S
+        - AttributeName: senderId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: invoiceId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: receiver-index
+          KeySchema:
+            - AttributeName: receiverId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: sender-index
+          KeySchema:
+            - AttributeName: senderId
               KeyType: HASH
           Projection:
             ProjectionType: ALL
