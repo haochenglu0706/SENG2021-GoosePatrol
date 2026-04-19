@@ -1,4 +1,7 @@
+import { PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { CORS_HEADERS } from "../cors.js";
+import { dynamo, INVOICE_REFS_TABLE } from "../db.js";
 import { verifySession } from "./auth.js";
 
 const INVOICE_BASE =
@@ -301,4 +304,78 @@ export async function getInvoiceXml(event: any) {
     invoiceToken: auth.invoiceToken,
     expectXml: true,
   });
+}
+
+// ---------------------------------------------------------------------------
+// POST /invoice-references  → save a reference so the receiver can see it
+// ---------------------------------------------------------------------------
+export async function saveInvoiceRef(event: any) {
+  const auth = await authorise(event);
+  if (!auth.ok) return auth.response;
+
+  const body = parseBody(event) as {
+    invoiceId?: string;
+    senderId?: string;
+    receiverId?: string;
+    despatchAdviceId?: string;
+  } | undefined;
+  if (!body) return badRequest("Request body is required");
+  if (!body.invoiceId || !body.senderId || !body.receiverId) {
+    return badRequest("invoiceId, senderId, and receiverId are required");
+  }
+
+  await dynamo.send(
+    new PutItemCommand({
+      TableName: INVOICE_REFS_TABLE,
+      Item: marshall({
+        invoiceId: body.invoiceId,
+        senderId: body.senderId,
+        receiverId: body.receiverId,
+        despatchAdviceId: body.despatchAdviceId ?? null,
+        createdAt: new Date().toISOString(),
+      }),
+    })
+  );
+
+  return {
+    statusCode: 201,
+    headers: CORS_HEADERS,
+    body: JSON.stringify({ invoiceId: body.invoiceId }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// GET /invoice-references/received  → list invoice refs where current user is receiver
+// ---------------------------------------------------------------------------
+export async function listReceivedInvoiceRefs(event: any) {
+  const sessionId = getSessionId(event);
+  const sessionClientId = await verifySession(sessionId);
+  if (!sessionClientId) {
+    return unauthorized("Invalid or missing session");
+  }
+
+  try {
+    const result = await dynamo.send(
+      new QueryCommand({
+        TableName: INVOICE_REFS_TABLE,
+        IndexName: "receiver-index",
+        KeyConditionExpression: "receiverId = :r",
+        ExpressionAttributeValues: marshall({ ":r": sessionClientId }),
+      })
+    );
+
+    const refs = (result.Items ?? []).map((item) => unmarshall(item));
+
+    return {
+      statusCode: 200,
+      headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      body: JSON.stringify(refs),
+    };
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ error: "InternalError", message: (err as Error).message }),
+    };
+  }
 }

@@ -10,6 +10,7 @@ import DespatchStatusPage from "./pages/despatch/status";
 import OrdersPage from "./pages/order/index";
 import OrderCreatePage from "./pages/order/create";
 import InvoicesPage from "./pages/invoices/index";
+import InvoiceCreatePage from "./pages/invoices/create";
 import ProfilePage from "./pages/profile/index";
 import CreateReceiptAdvicePage from "./pages/receiptAdvice/createReceiptAdvice";
 import ViewReceiptAdvicePage   from "./pages/receiptAdvice/viewReceiptAdvice";
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="despatch/view" element={<DespatchViewPage />} />
           <Route path="despatch/status" element={<DespatchStatusPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="invoices/create" element={<InvoiceCreatePage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="receipt-advices/create" element={<CreateReceiptAdvicePage />} />
           <Route path="receipt-advices/view"   element={<ViewReceiptAdvicePage />} />

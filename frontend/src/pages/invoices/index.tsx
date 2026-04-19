@@ -1,19 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch, downloadXml } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
 import styles from "./style/invoices.module.css";
 
-type InvoiceRecord = {
-  id: string;
-  userId?: string;
-  buyer_name?: string;
-  total_amount?: string | number;
-  currency?: string;
+type InvoiceRaw = {
+  ID?: string;
+  id?: string;
+  user_id?: string;
   status?: string;
-  file_path?: string;
   created_at?: string;
-  invoiceData?: Record<string, unknown>;
+  invoice_data?: Record<string, unknown>;
+  xmlS3Key?: string;
+};
+
+type InvoiceRecord = InvoiceRaw & { _id: string };
+
+function normalise(raw: InvoiceRaw): InvoiceRecord {
+  return { ...raw, _id: raw.ID ?? raw.id ?? "" };
+}
+
+type InvoiceRef = {
+  invoiceId: string;
+  senderId: string;
+  receiverId: string;
+  despatchAdviceId?: string;
+  createdAt?: string;
 };
 
 function statusColor(s?: string) {
@@ -49,7 +62,7 @@ function InvoiceDetailModal({
         <div className="modal-header">
           <div>
             <div className="card-title" id="invoice-detail-title">
-              Invoice {invoice.id.slice(0, 8)}...
+              Invoice {invoice._id.slice(0, 8)}...
             </div>
             <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
               {invoice.created_at ?? "—"}
@@ -64,7 +77,7 @@ function InvoiceDetailModal({
           <div className="detail-grid">
             <div>
               <div className="detail-key">Invoice ID</div>
-              <div className="detail-val">{invoice.id}</div>
+              <div className="detail-val">{invoice._id}</div>
             </div>
             <div>
               <div className="detail-key">Status</div>
@@ -92,96 +105,6 @@ function InvoiceDetailModal({
   );
 }
 
-function InvoiceEditorModal({
-  title,
-  initialBody,
-  submitLabel,
-  onSubmit,
-  onClose,
-}: {
-  title: string;
-  initialBody: string;
-  submitLabel: string;
-  onSubmit: (body: unknown) => Promise<void>;
-  onClose: () => void;
-}) {
-  const [text, setText] = useState(initialBody);
-  const [submitting, setSubmitting] = useState(false);
-  const [err, setErr] = useState("");
-
-  const submit = async () => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch (e) {
-      setErr(`Invalid JSON: ${(e as Error).message}`);
-      return;
-    }
-    setSubmitting(true);
-    setErr("");
-    try {
-      await onSubmit(parsed);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      className="modal-overlay"
-      onClick={(e) => e.target === e.currentTarget && !submitting && onClose()}
-      role="presentation"
-    >
-      <div className="modal" role="dialog" style={{ maxWidth: 760 }}>
-        <div className="modal-header">
-          <div className="card-title">{title}</div>
-          <button
-            type="button"
-            className="modal-close"
-            onClick={onClose}
-            aria-label="Close"
-            disabled={submitting}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="modal-body">
-          {err ? <div className="alert alert-err">{err}</div> : null}
-          <div className="card-sub" style={{ marginBottom: 8 }}>
-            Edit the invoice JSON body. The schema matches the Invoice Generator API.
-          </div>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            className={styles.editor}
-            spellCheck={false}
-          />
-          <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void submit()}
-              disabled={submitting}
-            >
-              {submitting ? <span className="spinner" /> : submitLabel}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function InvoicesPage() {
   const { sessionId, invoiceToken, invoiceUserId } = useAuth();
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
@@ -190,7 +113,12 @@ export default function InvoicesPage() {
   const [busy, setBusy] = useState<Record<string, string | undefined>>({});
   const [toast, setToast] = useState("");
   const [selected, setSelected] = useState<InvoiceRecord | null>(null);
-  const [creating, setCreating] = useState(false);
+
+  // Received invoices
+  const [receivedRefs, setReceivedRefs] = useState<InvoiceRef[]>([]);
+  const [receivedDetails, setReceivedDetails] = useState<Record<string, InvoiceRecord>>({});
+  const [receivedLoading, setReceivedLoading] = useState(false);
+  const [senderNames, setSenderNames] = useState<Record<string, string>>({});
 
   const setBusyFor = (id: string, val: string | undefined) =>
     setBusy((b) => ({ ...b, [id]: val }));
@@ -207,12 +135,12 @@ export default function InvoicesPage() {
     setLoading(true);
     setErr("");
     try {
-      const data = await apiFetch<InvoiceRecord[]>(
+      const data = await apiFetch<InvoiceRaw[]>(
         "/invoices",
         { headers: { invoiceToken, invoiceUserId } },
         sessionId
       );
-      const arr = Array.isArray(data) ? data : [];
+      const arr = Array.isArray(data) ? data.map(normalise) : [];
       setInvoices(arr);
     } catch (e) {
       setErr((e as Error).message);
@@ -221,9 +149,58 @@ export default function InvoicesPage() {
     }
   }, [sessionId, invoiceToken, invoiceUserId]);
 
+  const loadReceived = useCallback(async () => {
+    if (!sessionId) return;
+    setReceivedLoading(true);
+    try {
+      const refs = await apiFetch<InvoiceRef[]>(
+        "/invoice-references/received",
+        {},
+        sessionId
+      );
+      const arr = Array.isArray(refs) ? refs : [];
+      setReceivedRefs(arr);
+
+      // Load sender usernames
+      const clients = await apiFetch<{ clientId: string; username: string }[]>(
+        "/clients",
+        {},
+        sessionId
+      );
+      const nameMap: Record<string, string> = {};
+      for (const c of clients) {
+        nameMap[c.clientId] = c.username;
+      }
+      setSenderNames(nameMap);
+
+      // Fetch invoice details for each ref (best-effort, needs invoice token)
+      if (invoiceToken) {
+        const details: Record<string, InvoiceRecord> = {};
+        for (const ref of arr) {
+          try {
+            const raw = await apiFetch<InvoiceRaw>(
+              `/invoices/${encodeURIComponent(ref.invoiceId)}`,
+              { headers: { invoiceToken } },
+              sessionId
+            );
+            details[ref.invoiceId] = normalise(raw);
+          } catch {
+            // Seller's invoice — may not be accessible with buyer's token
+          }
+        }
+        setReceivedDetails(details);
+      }
+    } catch {
+      setReceivedRefs([]);
+    } finally {
+      setReceivedLoading(false);
+    }
+  }, [sessionId, invoiceToken]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadReceived();
+  }, [load, loadReceived]);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -257,7 +234,11 @@ export default function InvoicesPage() {
         { method: "POST", headers: extraHeaders },
         sessionId
       );
-      flash(res.valid !== false ? "Invoice is valid" : `Validation failed: ${res.message ?? res.errors?.join(", ") ?? "see details"}`);
+      flash(
+        res.valid !== false
+          ? "Invoice is valid"
+          : `Validation failed: ${res.message ?? res.errors?.join(", ") ?? "see details"}`
+      );
       void load();
     } catch (e) {
       flash(`Error: ${(e as Error).message}`);
@@ -294,64 +275,13 @@ export default function InvoicesPage() {
         { method: "DELETE", headers: extraHeaders },
         sessionId
       );
-      setInvoices((prev) => prev.filter((i) => i.id !== invoiceId));
+      setInvoices((prev) => prev.filter((i) => i._id !== invoiceId));
       flash(`Deleted invoice ${invoiceId.slice(0, 8)}...`);
     } catch (e) {
       flash(`Error: ${(e as Error).message}`);
     } finally {
       setBusyFor(invoiceId, undefined);
     }
-  };
-
-  const createTemplate = JSON.stringify(
-    {
-      userId: invoiceUserId ?? "",
-      invoiceData: {
-        ProfileID: "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
-        IssueDate: new Date().toISOString().slice(0, 10),
-        DueDate: "",
-        OrderReference: { ID: "" },
-        Delivery: {
-          ActualDeliveryDate: "",
-          ActualDeliveryTime: "",
-        },
-        PaymentMeans: {
-          PaymentMeansCode: "30",
-          PaymentDueDate: "",
-          PayeeFinancialAccount: { ID: "", Name: "", Currency: "AUD" },
-        },
-        Supplier: { Name: "", ID: "" },
-        Customer: { Name: "", ID: "" },
-        LegalMonetaryTotal: {
-          Currency: "AUD",
-          LineExtensionAmount: 0,
-          TaxExclusiveAmount: 0,
-          TaxInclusiveAmount: 0,
-          AllowanceTotalAmount: 0,
-          ChargeTotalAmount: 0,
-          PrepaidAmount: 0,
-          PayableAmount: 0,
-        },
-      },
-    },
-    null,
-    2
-  );
-
-  const submitCreate = async (body: unknown) => {
-    if (!sessionId) return;
-    await apiFetch(
-      "/invoices",
-      {
-        method: "POST",
-        headers: extraHeaders,
-        body: JSON.stringify(body),
-      },
-      sessionId
-    );
-    setCreating(false);
-    flash("Invoice created");
-    void load();
   };
 
   const hasToken = !!invoiceToken && !!invoiceUserId;
@@ -363,13 +293,13 @@ export default function InvoicesPage() {
         subtitle="Invoice Generator API integration"
         right={
           hasToken ? (
-            <button
-              type="button"
+            <Link
+              to="/app/invoices/create"
               className="btn btn-primary"
-              onClick={() => setCreating(true)}
+              style={{ textDecoration: "none" }}
             >
               + New invoice
-            </button>
+            </Link>
           ) : undefined
         }
       />
@@ -394,9 +324,10 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        <div className="card">
-          <div className="card-title">Your invoices</div>
-          <div className="card-sub">Invoices from your linked Invoice API account.</div>
+        {/* ── Sent invoices (your invoices) ── */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Sent invoices</div>
+          <div className="card-sub">Invoices you have created and sent.</div>
 
           {err ? <div className="alert alert-err">{err}</div> : null}
 
@@ -415,7 +346,7 @@ export default function InvoicesPage() {
           ) : invoices.length === 0 ? (
             <div className="empty-state">
               <div className="empty-icon">🧾</div>
-              <div className="empty-title">No invoices yet</div>
+              <div className="empty-title">No sent invoices yet</div>
               <div className="empty-sub">Click + New invoice to create your first one.</div>
             </div>
           ) : (
@@ -431,9 +362,9 @@ export default function InvoicesPage() {
                 </thead>
                 <tbody>
                   {invoices.map((inv) => (
-                    <tr key={inv.id}>
+                    <tr key={inv._id}>
                       <td className="primary mono" style={{ fontSize: 11 }}>
-                        {inv.id.slice(0, 12)}...
+                        {inv._id.slice(0, 12)}...
                       </td>
                       <td>
                         <span
@@ -464,10 +395,10 @@ export default function InvoicesPage() {
                             type="button"
                             className="btn btn-ghost"
                             style={{ fontSize: 11, padding: "5px 8px" }}
-                            onClick={() => void transformInvoice(inv.id)}
-                            disabled={!!busy[inv.id]}
+                            onClick={() => void transformInvoice(inv._id)}
+                            disabled={!!busy[inv._id]}
                           >
-                            {busy[inv.id] === "transform" ? (
+                            {busy[inv._id] === "transform" ? (
                               <span className="spinner" />
                             ) : (
                               "Transform"
@@ -477,10 +408,10 @@ export default function InvoicesPage() {
                             type="button"
                             className="btn btn-ghost"
                             style={{ fontSize: 11, padding: "5px 8px" }}
-                            onClick={() => void validateInvoice(inv.id)}
-                            disabled={!!busy[inv.id]}
+                            onClick={() => void validateInvoice(inv._id)}
+                            disabled={!!busy[inv._id]}
                           >
-                            {busy[inv.id] === "validate" ? (
+                            {busy[inv._id] === "validate" ? (
                               <span className="spinner" />
                             ) : (
                               "Validate"
@@ -490,10 +421,10 @@ export default function InvoicesPage() {
                             type="button"
                             className="btn btn-ghost"
                             style={{ fontSize: 11, padding: "5px 8px" }}
-                            onClick={() => void downloadInvoiceXml(inv.id)}
-                            disabled={!!busy[inv.id]}
+                            onClick={() => void downloadInvoiceXml(inv._id)}
+                            disabled={!!busy[inv._id]}
                           >
-                            {busy[inv.id] === "xml" ? (
+                            {busy[inv._id] === "xml" ? (
                               <span className="spinner" />
                             ) : (
                               "↓ XML"
@@ -503,10 +434,10 @@ export default function InvoicesPage() {
                             type="button"
                             className="btn btn-danger"
                             style={{ fontSize: 11, padding: "5px 8px" }}
-                            onClick={() => void deleteInvoice(inv.id)}
-                            disabled={!!busy[inv.id]}
+                            onClick={() => void deleteInvoice(inv._id)}
+                            disabled={!!busy[inv._id]}
                           >
-                            {busy[inv.id] === "delete" ? (
+                            {busy[inv._id] === "delete" ? (
                               <span className="spinner" />
                             ) : (
                               "Delete"
@@ -521,20 +452,104 @@ export default function InvoicesPage() {
             </div>
           )}
         </div>
+
+        {/* ── Received invoices ── */}
+        <div className="card">
+          <div className="card-title">Received invoices</div>
+          <div className="card-sub">Invoices sent to you by other users.</div>
+
+          {receivedLoading ? (
+            <div className={styles.centerMuted}>
+              <span className="spinner" />
+            </div>
+          ) : receivedRefs.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📥</div>
+              <div className="empty-title">No received invoices</div>
+              <div className="empty-sub">
+                Invoices sent to you by sellers will appear here.
+              </div>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Invoice ID</th>
+                    <th>From</th>
+                    <th>Despatch Ref</th>
+                    <th>Status</th>
+                    <th>Received</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receivedRefs.map((ref) => {
+                    const detail = receivedDetails[ref.invoiceId];
+                    const senderName =
+                      senderNames[ref.senderId] ?? ref.senderId.slice(0, 12) + "...";
+                    return (
+                      <tr key={ref.invoiceId}>
+                        <td className="primary mono" style={{ fontSize: 11 }}>
+                          {ref.invoiceId.slice(0, 12)}...
+                        </td>
+                        <td style={{ fontSize: 12 }}>{senderName}</td>
+                        <td className="mono" style={{ fontSize: 11 }}>
+                          {ref.despatchAdviceId
+                            ? ref.despatchAdviceId.slice(0, 12) + "..."
+                            : "—"}
+                        </td>
+                        <td>
+                          <span
+                            style={{
+                              color: statusColor(detail?.status),
+                              fontWeight: 600,
+                              fontSize: 11,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {detail?.status ?? "—"}
+                          </span>
+                        </td>
+                        <td className="mono" style={{ fontSize: 11 }}>
+                          {ref.createdAt ? ref.createdAt.slice(0, 10) : "—"}
+                        </td>
+                        <td>
+                          <div className={styles.actions}>
+                            {detail ? (
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                style={{ fontSize: 11, padding: "5px 8px" }}
+                                onClick={() => setSelected(detail)}
+                              >
+                                View
+                              </button>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  color: "var(--dim)",
+                                  padding: "5px 8px",
+                                }}
+                              >
+                                Details unavailable
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {selected ? (
         <InvoiceDetailModal invoice={selected} onClose={() => setSelected(null)} />
-      ) : null}
-
-      {creating ? (
-        <InvoiceEditorModal
-          title="Create invoice"
-          initialBody={createTemplate}
-          submitLabel="Create →"
-          onSubmit={submitCreate}
-          onClose={() => setCreating(false)}
-        />
       ) : null}
     </>
   );

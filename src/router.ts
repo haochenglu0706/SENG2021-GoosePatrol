@@ -199,6 +199,15 @@ export async function route(event: any) {
     return invoices.createInvoice(event);
   }
 
+  // Invoice reference routes
+  if (method === "POST" && path === "/invoice-references") {
+    return invoices.saveInvoiceRef(event);
+  }
+
+  if (method === "GET" && path === "/invoice-references/received") {
+    return invoices.listReceivedInvoiceRefs(event);
+  }
+
   // POST /invoices/{invoiceId}/transform
   const invoiceTransformMatch = path.match(/^\/invoices\/([^/]+)\/transform$/);
   if (method === "POST" && invoiceTransformMatch) {

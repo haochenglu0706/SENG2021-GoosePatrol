@@ -13,3 +13,6 @@ export const DESPATCH_ADVICES_TABLE =
 
 export const RECEIPT_ADVICES_TABLE =
   (process.env.RECEIPT_ADVICES_TABLE_NAME as string) || "ReceiptAdvices";
+
+export const INVOICE_REFS_TABLE =
+  (process.env.INVOICE_REFS_TABLE_NAME as string) || "InvoiceReferences";
