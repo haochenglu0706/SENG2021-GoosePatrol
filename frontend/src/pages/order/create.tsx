@@ -17,6 +17,8 @@ export default function OrderCreatePage() {
     issueDate: today,
     ublVersion: "2.1",
     note: "",
+    // seller (name only — address filled in when they despatch)
+    sellerName: "",
     // buyer
     buyerAccountId: "",
     buyerPartyId: "",
@@ -119,6 +121,11 @@ export default function OrderCreatePage() {
                 Name: f.buyerCountryName,
               },
             },
+          },
+        },
+        SellerSupplierParty: {
+          Party: {
+            PartyName: [{ Name: f.sellerName || "TBD" }],
           },
         },
         OrderLine: allLines,
@@ -229,6 +236,17 @@ export default function OrderCreatePage() {
               <label>Country name</label>
               <input value={f.buyerCountryName} onChange={set("buyerCountryName")} />
             </div>
+          </div>
+
+          {/* ── Seller ── */}
+          <div className="section-label">Seller supplier party</div>
+          <div className="field">
+            <label>Seller name (optional)</label>
+            <input
+              placeholder="Leave blank if unknown — filled in when seller despatches"
+              value={f.sellerName}
+              onChange={set("sellerName")}
+            />
           </div>
 
           {/* ── Order lines ── */}

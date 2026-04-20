@@ -150,6 +150,7 @@ function extractEditState(order: OrderRecord) {
       buyerZone: buyerAddr.PostalZone ?? "",
       buyerCountryCode: buyerAddr.Country?.IdentificationCode ?? "AU",
       buyerCountryName: buyerAddr.Country?.Name ?? "Australia",
+      sellerName: (f.SellerSupplierParty as any)?.Party?.PartyName?.[0]?.Name ?? "",
       line1Id: li1.ID ?? "LINE-001",
       line1Name: item1.Name ?? "",
       line1Desc: Array.isArray(item1.Description) ? item1.Description[0] ?? "" : item1.Description ?? "",
@@ -246,6 +247,11 @@ function OrderEditorModal({
             },
           },
         },
+        SellerSupplierParty: {
+          Party: {
+            PartyName: [{ Name: f.sellerName || "TBD" }],
+          },
+        },
         OrderLine: allLines,
       };
 
@@ -310,6 +316,12 @@ function OrderEditorModal({
             <div className="field"><label>Postal zone</label><input value={f.buyerZone} onChange={set("buyerZone")} /></div>
             <div className="field"><label>Country code</label><input maxLength={2} value={f.buyerCountryCode} onChange={set("buyerCountryCode")} /></div>
             <div className="field"><label>Country name</label><input value={f.buyerCountryName} onChange={set("buyerCountryName")} /></div>
+          </div>
+
+          <div className="section-label">Seller supplier party</div>
+          <div className="field">
+            <label>Seller name (optional)</label>
+            <input placeholder="Leave blank if unknown" value={f.sellerName} onChange={set("sellerName")} />
           </div>
 
           <div className="section-label">Order lines</div>
