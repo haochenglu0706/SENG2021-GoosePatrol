@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { apiFetch, downloadXml } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
@@ -383,7 +383,6 @@ function OrderEditorModal({
 // ---------------------------------------------------------------------------
 
 export default function OrdersPage() {
-  const navigate = useNavigate();
   const { sessionId, orderMsToken: authToken } = useAuth();
   const [manualToken, setManualToken] = useState<string>(
     () => localStorage.getItem(TOKEN_KEY) ?? ""
