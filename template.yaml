@@ -36,7 +36,7 @@ Globals:
     TracingEnabled: true
     Cors:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-      AllowHeaders: "'Content-Type,sessionId,orderMsToken,invoiceToken,invoiceUserId'"
+      AllowHeaders: "'Content-Type,sessionId,session-id,Session-Id,orderMsToken,ordermstoken,invoiceToken,invoicetoken,invoiceUserId,invoiceuserid,Authorization'"
       AllowOrigin: "'*'"
 
 Resources:
@@ -170,6 +170,59 @@ Resources:
             Path: /orders/{orderId}/xml
             Method: get
 
+        # Invoice routes (kept in sync with src/router.ts)
+        # Added so API Gateway recognizes invoice endpoints and applies CORS.
+        ListInvoices:
+          Type: Api
+          Properties:
+            Path: /invoices
+            Method: get
+        GetInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}
+            Method: get
+        CreateInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices
+            Method: post
+        DeleteInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}
+            Method: delete
+        TransformInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/transform
+            Method: post
+        ValidateInvoice:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/validate
+            Method: post
+        UpdateInvoiceStatus:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/status
+            Method: put
+        GetInvoiceXml:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/xml
+            Method: get
+        SaveInvoiceReference:
+          Type: Api
+          Properties:
+            Path: /invoice-references
+            Method: post
+        ListReceivedInvoiceReferences:
+          Type: Api
+          Properties:
+            Path: /invoice-references/received
+            Method: get
+
         # DeepL XML translation (see src/routes/translate.ts)
         TranslateDocument:
           Type: Api
@@ -213,6 +266,7 @@ Resources:
           SESSIONS_TABLE_NAME: !Ref SessionsTableName
           DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
           RECEIPT_ADVICES_TABLE_NAME: !Ref ReceiptAdvicesTableName
+          INVOICE_REFS_TABLE_NAME: !Ref InvoiceRefsTableName
           DEEPL_API_KEY: "89d88353-943e-414f-904e-00d312f3870d:fx"
           DEEPL_API_URL: "https://api-free.deepl.com/v2"
       Policies:
