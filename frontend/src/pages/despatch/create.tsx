@@ -1,108 +1,100 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
 import styles from "./style/create.module.css";
 
-function extractOrderDefaults(loc: any) {
-  const order = loc?.state?.fromOrder;
-  if (!order) return null;
-  // order is an OrderRecord: { data?: {...}, orderId, ... } merged with _fields
-  const d = order.data ?? order;
-  const buyer = d.BuyerCustomerParty?.Party ?? {};
-  const seller = d.SellerSupplierParty?.Party ?? {};
-  const buyerAddr = buyer.PostalAddress ?? {};
-  const sellerAddr = seller.PostalAddress ?? {};
-  const firstLine = d.OrderLine?.[0]?.LineItem ?? {};
-  const item = firstLine.Item ?? {};
+type DespatchLine = {
+  id: string;
+  qty: string;
+  unit: string;
+  orderRef: string;
+  itemName: string;
+  itemDesc: string;
+};
+
+function orderLinesToDespatchLines(orderLines: any[], orderId: string): DespatchLine[] {
+  if (!Array.isArray(orderLines) || orderLines.length === 0) {
+    return [{ id: "LINE-1", qty: "1", unit: "EA", orderRef: orderId, itemName: "", itemDesc: "" }];
+  }
+  return orderLines.map((ol: any, i: number) => {
+    const li = ol.LineItem ?? {};
+    const item = li.Item ?? {};
+    const qty = ol.Quantity ?? li.Quantity ?? 1;
+    const unit = ol.QuantityUnitCode ?? li.QuantityUnitCode ?? "EA";
+    return {
+      id: li.ID ?? `LINE-${i + 1}`,
+      qty: String(qty),
+      unit: String(unit),
+      orderRef: orderId,
+      itemName: item.Name ?? "",
+      itemDesc: Array.isArray(item.Description)
+        ? item.Description.join(", ")
+        : item.Description ?? "",
+    };
+  });
+}
+
+function defaultLine(idx: number, orderRef: string): DespatchLine {
   return {
-    documentId: `DA-${d.ID ?? ""}`,
-    orderRefId: d.ID ?? "",
-    note: Array.isArray(d.Note) ? d.Note.join("; ") : "",
-    // Seller ships → despatch supplier party
-    supplierName: seller.PartyName?.[0]?.Name ?? "",
-    supplierStreet: sellerAddr.StreetName ?? "",
-    supplierCity: sellerAddr.CityName ?? "",
-    supplierZone: sellerAddr.PostalZone ?? "",
-    supplierCountry: sellerAddr.Country?.IdentificationCode ?? "AU",
-    // Buyer receives → delivery customer party + delivery address
-    customerName: buyer.PartyName?.[0]?.Name ?? "",
-    customerStreet: buyerAddr.StreetName ?? "",
-    customerCity: buyerAddr.CityName ?? "",
-    customerZone: buyerAddr.PostalZone ?? "",
-    customerCountry: buyerAddr.Country?.IdentificationCode ?? "AU",
-    delivStreet: buyerAddr.StreetName ?? "",
-    delivCity: buyerAddr.CityName ?? "",
-    delivZone: buyerAddr.PostalZone ?? "",
-    delivCountry: buyerAddr.Country?.IdentificationCode ?? "AU",
-    // First line item
-    lineId: firstLine.ID ?? "LINE-1",
-    lineItemName: item.Name ?? "",
-    lineItemDesc: Array.isArray(item.Description)
-      ? item.Description.join(", ")
-      : item.Description ?? "",
-    lineOrderRef: d.ID ?? "ORD-001",
+    id: `LINE-${idx + 1}`,
+    qty: "1",
+    unit: "EA",
+    orderRef,
+    itemName: "",
+    itemDesc: "",
   };
 }
 
 export default function DespatchCreatePage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { clientId, sessionId } = useAuth();
   const today = new Date().toISOString().split("T")[0];
   const future = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
 
-  const orderDefaults = extractOrderDefaults(location);
-  const fromOrder = !!orderDefaults;
-
   const [f, setF] = useState({
-    documentId: orderDefaults?.documentId ?? "",
+    documentId: "",
     receiverId: "",
     copyIndicator: false,
     issueDate: today,
     documentStatusCode: "Active",
-    orderRefId: orderDefaults?.orderRefId ?? "ORD-001",
-    supplierName: orderDefaults?.supplierName ?? "",
-    supplierStreet: orderDefaults?.supplierStreet ?? "",
-    supplierCity: orderDefaults?.supplierCity ?? "",
-    supplierZone: orderDefaults?.supplierZone ?? "2000",
-    supplierCountry: orderDefaults?.supplierCountry ?? "AU",
+    orderRefId: "ORD-001",
+    supplierName: "",
+    supplierStreet: "",
+    supplierCity: "",
+    supplierZone: "2000",
+    supplierCountry: "AU",
     contactName: "",
     contactPhone: "",
     contactEmail: "",
-    customerName: orderDefaults?.customerName ?? "",
-    customerStreet: orderDefaults?.customerStreet ?? "",
-    customerCity: orderDefaults?.customerCity ?? "",
-    customerZone: orderDefaults?.customerZone ?? "2000",
-    customerCountry: orderDefaults?.customerCountry ?? "AU",
+    customerName: "",
+    customerStreet: "",
+    customerCity: "",
+    customerZone: "2000",
+    customerCountry: "AU",
     shipId: "SHIP-001",
     consId: "CONS-001",
-    delivStreet: orderDefaults?.delivStreet ?? "1 Customer Rd",
-    delivCity: orderDefaults?.delivCity ?? "Sydney",
-    delivZone: orderDefaults?.delivZone ?? "2000",
-    delivCountry: orderDefaults?.delivCountry ?? "AU",
+    delivStreet: "",
+    delivCity: "",
+    delivZone: "2000",
+    delivCountry: "AU",
     periodStart: today,
     periodEnd: future,
-    lineId: orderDefaults?.lineId ?? "LINE-1",
-    lineQty: "10",
-    lineUnit: "EA",
-    lineOrderRef: orderDefaults?.lineOrderRef ?? "ORD-001",
-    lineItemName: orderDefaults?.lineItemName ?? "",
-    lineItemDesc: orderDefaults?.lineItemDesc ?? "",
-    note: orderDefaults?.note ?? "",
+    note: "",
   });
+
+  const [lines, setLines] = useState<DespatchLine[]>([defaultLine(0, "ORD-001")]);
 
   const [clients, setClients] = useState<{ clientId: string; username: string }[]>([]);
   const [clientsErr, setClientsErr] = useState("");
   const [receiverOpen, setReceiverOpen] = useState(false);
   const receiverRef = useRef<HTMLDivElement>(null);
 
-  // Orders for the selected receiver
   const [receiverOrders, setReceiverOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [preOrderSnapshot, setPreOrderSnapshot] = useState<typeof f | null>(null);
+  const [preOrderSnapshot, setPreOrderSnapshot] = useState<{ f: typeof f; lines: DespatchLine[] } | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -116,7 +108,6 @@ export default function DespatchCreatePage() {
       });
   }, [sessionId, clientId]);
 
-  // Fetch orders when receiver changes
   useEffect(() => {
     if (!f.receiverId || !sessionId) {
       setReceiverOrders([]);
@@ -131,9 +122,7 @@ export default function DespatchCreatePage() {
         const list = Array.isArray(data) ? data : [];
         setReceiverOrders(list);
       })
-      .catch(() => {
-        setReceiverOrders([]);
-      })
+      .catch(() => setReceiverOrders([]))
       .finally(() => setOrdersLoading(false));
   }, [f.receiverId, sessionId]);
 
@@ -141,26 +130,25 @@ export default function DespatchCreatePage() {
     const d = order.data ?? order;
     const id = order.orderId ?? d.ID ?? null;
 
-    // Deselect: restore the snapshot
     if (selectedOrderId === id) {
-      if (preOrderSnapshot) setF(preOrderSnapshot);
+      if (preOrderSnapshot) {
+        setF(preOrderSnapshot.f);
+        setLines(preOrderSnapshot.lines);
+      }
       setPreOrderSnapshot(null);
       setSelectedOrderId(null);
       return;
     }
 
-    // Save current form state before overwriting (only if no order is selected yet)
     if (!selectedOrderId) {
-      setPreOrderSnapshot({ ...f });
+      setPreOrderSnapshot({ f: { ...f }, lines: [...lines] });
     }
 
     const buyer = d.BuyerCustomerParty?.Party ?? {};
     const seller = d.SellerSupplierParty?.Party ?? {};
     const buyerAddr = buyer.PostalAddress ?? {};
     const sellerAddr = seller.PostalAddress ?? {};
-    const firstLine = d.OrderLine?.[0]?.LineItem ?? {};
-    const item = firstLine.Item ?? {};
-    const base = preOrderSnapshot ?? f;
+    const base = preOrderSnapshot?.f ?? f;
 
     setF({
       ...base,
@@ -181,17 +169,12 @@ export default function DespatchCreatePage() {
       delivCity: buyerAddr.CityName ?? base.delivCity,
       delivZone: buyerAddr.PostalZone ?? base.delivZone,
       delivCountry: buyerAddr.Country?.IdentificationCode ?? base.delivCountry,
-      lineId: firstLine.ID ?? base.lineId,
-      lineItemName: item.Name ?? base.lineItemName,
-      lineItemDesc: Array.isArray(item.Description)
-        ? item.Description.join(", ")
-        : item.Description ?? base.lineItemDesc,
-      lineOrderRef: d.ID ?? base.lineOrderRef,
     });
+
+    setLines(orderLinesToDespatchLines(d.OrderLine ?? [], d.ID ?? ""));
     setSelectedOrderId(id);
   }
 
-  // Close receiver dropdown on outside click
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
       if (receiverRef.current && !receiverRef.current.contains(e.target as Node)) {
@@ -210,8 +193,18 @@ export default function DespatchCreatePage() {
     (k: keyof typeof f) =>
     (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setF((p) => ({ ...p, [k]: e.target.value }));
+
   const setC = (k: keyof typeof f) => (e: ChangeEvent<HTMLInputElement>) =>
     setF((p) => ({ ...p, [k]: e.target.checked }));
+
+  const updateLine = (idx: number, key: keyof DespatchLine, val: string) =>
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, [key]: val } : l)));
+
+  const addLine = () =>
+    setLines((prev) => [...prev, defaultLine(prev.length, f.orderRefId)]);
+
+  const removeLine = (idx: number) =>
+    setLines((prev) => prev.filter((_, i) => i !== idx));
 
   const submit = async () => {
     if (!clientId || !sessionId) return;
@@ -268,18 +261,16 @@ export default function DespatchCreatePage() {
             requestedDeliveryPeriod: { startDate: f.periodStart, endDate: f.periodEnd },
           },
         },
-        despatchLines: [
-          {
-            id: f.lineId,
-            deliveredQuantity: parseFloat(f.lineQty) || 1,
-            deliveredQuantityUnitCode: f.lineUnit,
-            orderLineReference: {
-              lineId: "1",
-              orderReference: { id: f.lineOrderRef },
-            },
-            item: { name: f.lineItemName, description: f.lineItemDesc },
+        despatchLines: lines.map((l, i) => ({
+          id: l.id || `LINE-${i + 1}`,
+          deliveredQuantity: parseFloat(l.qty) || 1,
+          deliveredQuantityUnitCode: l.unit || "EA",
+          orderLineReference: {
+            lineId: String(i + 1),
+            orderReference: { id: l.orderRef || f.orderRefId },
           },
-        ],
+          item: { name: l.itemName, description: l.itemDesc || l.itemName },
+        })),
       };
       const res = await apiFetch<{ despatchAdviceId: string }>(
         "/despatch-advices",
@@ -306,8 +297,7 @@ export default function DespatchCreatePage() {
     f.customerCity,
     f.delivStreet,
     f.delivCity,
-    f.lineItemName,
-    f.lineItemDesc,
+    ...lines.map((l) => l.itemName),
   ];
   const valid = req.every((v) => v && String(v).trim());
 
@@ -328,13 +318,6 @@ export default function DespatchCreatePage() {
         <div className="card">
           <div className="card-title">New despatch advice</div>
           <div className="card-sub">Sender is fixed to your logged-in client ID.</div>
-
-          {fromOrder ? (
-            <div className="alert alert-info" style={{ marginBottom: 12 }}>
-              Pre-filled from order <strong>{orderDefaults.orderRefId}</strong>. Review
-              the fields below, select a receiver, and adjust quantities before creating.
-            </div>
-          ) : null}
 
           {err ? <div className="alert alert-err">{err}</div> : null}
           {ok ? <div className="alert alert-ok">{ok}</div> : null}
@@ -402,6 +385,7 @@ export default function DespatchCreatePage() {
               </div>
             </div>
           </div>
+
           {f.receiverId && (
             <div className={styles.orderPicker}>
               <div className={styles.orderPickerTitle}>
@@ -417,8 +401,7 @@ export default function DespatchCreatePage() {
                     const d = o.data ?? o;
                     const id = o.orderId ?? d.ID ?? "?";
                     const buyer = d.BuyerCustomerParty?.Party?.PartyName?.[0]?.Name ?? "—";
-                    const seller = d.SellerSupplierParty?.Party?.PartyName?.[0]?.Name ?? "—";
-                    const lines = d.OrderLine?.length ?? 0;
+                    const lineCount = d.OrderLine?.length ?? 0;
                     const isSelected = selectedOrderId === id;
                     return (
                       <button
@@ -429,7 +412,7 @@ export default function DespatchCreatePage() {
                       >
                         <div className={styles.orderCardId}>{d.ID ?? id}</div>
                         <div className={styles.orderCardMeta}>
-                          {buyer} → {seller} · {lines} line{lines !== 1 ? "s" : ""}
+                          {buyer} · {lineCount} line{lineCount !== 1 ? "s" : ""}
                         </div>
                         {d.IssueDate && <div className={styles.orderCardDate}>{d.IssueDate}</div>}
                       </button>
@@ -442,7 +425,7 @@ export default function DespatchCreatePage() {
 
           {selectedOrderId && (
             <div className="alert alert-info" style={{ marginBottom: 12 }}>
-              Auto-filled from order <strong>{selectedOrderId}</strong>. Review and adjust fields below before creating.
+              Auto-filled from order <strong>{selectedOrderId}</strong> — all {lines.length} line{lines.length !== 1 ? "s" : ""} imported. Review and adjust before creating.
             </div>
           )}
 
@@ -467,17 +450,7 @@ export default function DespatchCreatePage() {
             </div>
             <div className="field">
               <label>Copy indicator</label>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  textTransform: "none",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  marginTop: 8,
-                }}
-              >
+              <label style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none", fontSize: 12, cursor: "pointer", marginTop: 8 }}>
                 <input type="checkbox" checked={f.copyIndicator} onChange={setC("copyIndicator")} />
                 Copy
               </label>
@@ -485,12 +458,7 @@ export default function DespatchCreatePage() {
           </div>
           <div className="field">
             <label>Note (optional)</label>
-            <textarea
-              placeholder="General note"
-              value={f.note}
-              onChange={set("note")}
-              style={{ minHeight: 50 }}
-            />
+            <textarea placeholder="General note" value={f.note} onChange={set("note")} style={{ minHeight: 50 }} />
           </div>
 
           <div className="section-label">Despatch supplier party</div>
@@ -602,38 +570,63 @@ export default function DespatchCreatePage() {
             </div>
           </div>
 
-          <div className="section-label">Despatch line</div>
-          <div className="field-row">
-            <div className="field">
-              <label>Item name *</label>
-              <input value={f.lineItemName} onChange={set("lineItemName")} />
+          <div className="section-label">Despatch lines</div>
+
+          {lines.map((line, i) => (
+            <div key={i} className={styles.lineCard}>
+              <div className={styles.lineHeader}>
+                <span className={styles.lineLabel}>Line {i + 1}</span>
+                {lines.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    style={{ fontSize: 10, padding: "3px 8px" }}
+                    onClick={() => removeLine(i)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>Item name *</label>
+                  <input value={line.itemName} onChange={(e) => updateLine(i, "itemName", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Description</label>
+                  <input value={line.itemDesc} onChange={(e) => updateLine(i, "itemDesc", e.target.value)} />
+                </div>
+              </div>
+              <div className="field-row-3">
+                <div className="field">
+                  <label>Quantity</label>
+                  <input type="number" min="1" value={line.qty} onChange={(e) => updateLine(i, "qty", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Unit code</label>
+                  <input value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Line ID</label>
+                  <input value={line.id} onChange={(e) => updateLine(i, "id", e.target.value)} />
+                </div>
+              </div>
             </div>
-            <div className="field">
-              <label>Description *</label>
-              <input value={f.lineItemDesc} onChange={set("lineItemDesc")} />
-            </div>
-          </div>
-          <div className="field-row-3">
-            <div className="field">
-              <label>Quantity</label>
-              <input type="number" value={f.lineQty} onChange={set("lineQty")} />
-            </div>
-            <div className="field">
-              <label>Unit code</label>
-              <input value={f.lineUnit} onChange={set("lineUnit")} />
-            </div>
-            <div className="field">
-              <label>Line ID</label>
-              <input value={f.lineId} onChange={set("lineId")} />
-            </div>
-          </div>
+          ))}
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ marginTop: 6 }}
+            onClick={addLine}
+          >
+            + Add another line
+          </button>
 
           <div className={styles.actions}>
             <button type="button" className="btn btn-primary" onClick={() => void submit()} disabled={loading || !valid}>
               {loading ? (
-                <>
-                  <span className="spinner" /> Creating…
-                </>
+                <><span className="spinner" /> Creating…</>
               ) : (
                 "Create despatch advice →"
               )}

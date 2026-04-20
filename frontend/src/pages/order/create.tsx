@@ -10,12 +10,15 @@ export default function OrderCreatePage() {
   const { sessionId, orderMsToken } = useAuth();
   const today = new Date().toISOString().split("T")[0];
 
+  const orderId = `ORD-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
   const [f, setF] = useState({
-    orderId: "",
+    orderId,
     issueDate: today,
-    ublVersion: "2.3",
+    ublVersion: "2.1",
     note: "",
-    customerRef: "",
+    // seller (name only — address filled in when they despatch)
+    sellerName: "",
     // buyer
     buyerAccountId: "",
     buyerPartyId: "",
@@ -25,25 +28,18 @@ export default function OrderCreatePage() {
     buyerZone: "",
     buyerCountryCode: "AU",
     buyerCountryName: "Australia",
-    // seller
-    sellerAccountId: "",
-    sellerPartyId: "",
-    sellerName: "",
-    sellerStreet: "",
-    sellerCity: "",
-    sellerZone: "",
-    sellerCountryCode: "AU",
-    sellerCountryName: "Australia",
     // line 1
     line1Id: "LINE-001",
     line1Name: "",
     line1Desc: "",
     line1Model: "",
     line1Note: "",
+    line1Qty: "1",
+    line1Unit: "EA",
   });
 
   const [extraLines, setExtraLines] = useState<
-    { id: string; name: string; desc: string; model: string; note: string }[]
+    { id: string; name: string; desc: string; model: string; note: string; qty: string; unit: string }[]
   >([]);
 
   const [loading, setLoading] = useState(false);
@@ -58,7 +54,7 @@ export default function OrderCreatePage() {
   const addLine = () =>
     setExtraLines((prev) => [
       ...prev,
-      { id: `LINE-${String(prev.length + 2).padStart(3, "0")}`, name: "", desc: "", model: "", note: "" },
+      { id: `LINE-${String(prev.length + 2).padStart(3, "0")}`, name: "", desc: "", model: "", note: "", qty: "1", unit: "EA" },
     ]);
 
   const updateLine = (idx: number, key: string, val: string) =>
@@ -86,6 +82,8 @@ export default function OrderCreatePage() {
               Model: f.line1Model || undefined,
             },
           },
+          Quantity: parseFloat(f.line1Qty) || 1,
+          QuantityUnitCode: f.line1Unit || "EA",
         },
         ...extraLines.map((l) => ({
           ...(l.note ? { Note: [l.note] } : {}),
@@ -97,6 +95,8 @@ export default function OrderCreatePage() {
               Model: l.model || undefined,
             },
           },
+          Quantity: parseFloat(l.qty) || 1,
+          QuantityUnitCode: l.unit || "EA",
         })),
       ];
 
@@ -105,7 +105,6 @@ export default function OrderCreatePage() {
         IssueDate: f.issueDate,
         UBLVersionID: f.ublVersion,
         ...(f.note.trim() ? { Note: [f.note.trim()] } : {}),
-        ...(f.customerRef.trim() ? { CustomerReference: f.customerRef.trim() } : {}),
         BuyerCustomerParty: {
           ...(f.buyerAccountId ? { CustomerAssignedAccountID: f.buyerAccountId } : {}),
           Party: {
@@ -125,21 +124,8 @@ export default function OrderCreatePage() {
           },
         },
         SellerSupplierParty: {
-          ...(f.sellerAccountId ? { CustomerAssignedAccountID: f.sellerAccountId } : {}),
           Party: {
-            ...(f.sellerPartyId
-              ? { PartyIdentification: [{ ID: f.sellerPartyId }] }
-              : {}),
-            PartyName: [{ Name: f.sellerName }],
-            PostalAddress: {
-              StreetName: f.sellerStreet,
-              CityName: f.sellerCity,
-              PostalZone: f.sellerZone,
-              Country: {
-                IdentificationCode: f.sellerCountryCode,
-                Name: f.sellerCountryName,
-              },
-            },
+            PartyName: [{ Name: f.sellerName || "TBD" }],
           },
         },
         OrderLine: allLines,
@@ -162,7 +148,7 @@ export default function OrderCreatePage() {
     }
   };
 
-  const req = [f.orderId, f.buyerName, f.sellerName, f.line1Name];
+  const req = [f.buyerName, f.line1Name];
   const valid = req.every((v) => v && v.trim());
 
   return (
@@ -186,23 +172,20 @@ export default function OrderCreatePage() {
           <div className="section-label">Document info</div>
           <div className="field-row">
             <div className="field">
-              <label>Order ID *</label>
-              <input placeholder="ORD-2026-001" value={f.orderId} onChange={set("orderId")} />
+              <label>Order ID</label>
+              <input value={f.orderId} readOnly disabled />
             </div>
             <div className="field">
               <label>Issue date</label>
-              <input type="date" value={f.issueDate} onChange={set("issueDate")} />
+              <input type="date" value={f.issueDate} readOnly disabled />
             </div>
           </div>
-          <div className="field-row">
-            <div className="field">
-              <label>UBL version</label>
-              <input value={f.ublVersion} onChange={set("ublVersion")} />
-            </div>
-            <div className="field">
-              <label>Customer reference</label>
-              <input placeholder="PO-77881" value={f.customerRef} onChange={set("customerRef")} />
-            </div>
+          <div className="field">
+            <label>UBL version</label>
+            <select value={f.ublVersion} onChange={set("ublVersion")}>
+              <option value="2.1">2.1</option>
+              <option value="2.4">2.4</option>
+            </select>
           </div>
           <div className="field">
             <label>Note (optional)</label>
@@ -257,43 +240,13 @@ export default function OrderCreatePage() {
 
           {/* ── Seller ── */}
           <div className="section-label">Seller supplier party</div>
-          <div className="field-row">
-            <div className="field">
-              <label>Party name *</label>
-              <input placeholder="Acme Office Supplies" value={f.sellerName} onChange={set("sellerName")} />
-            </div>
-            <div className="field">
-              <label>Account ID</label>
-              <input placeholder="SUPP-0099" value={f.sellerAccountId} onChange={set("sellerAccountId")} />
-            </div>
-          </div>
           <div className="field">
-            <label>Party identification (ABN / ID)</label>
-            <input placeholder="SELLER-ABN-11000999888" value={f.sellerPartyId} onChange={set("sellerPartyId")} />
-          </div>
-          <div className="field-row">
-            <div className="field">
-              <label>Street</label>
-              <input placeholder="45 George Street" value={f.sellerStreet} onChange={set("sellerStreet")} />
-            </div>
-            <div className="field">
-              <label>City</label>
-              <input placeholder="Sydney" value={f.sellerCity} onChange={set("sellerCity")} />
-            </div>
-          </div>
-          <div className="field-row-3">
-            <div className="field">
-              <label>Postal zone</label>
-              <input placeholder="2000" value={f.sellerZone} onChange={set("sellerZone")} />
-            </div>
-            <div className="field">
-              <label>Country code</label>
-              <input maxLength={2} value={f.sellerCountryCode} onChange={set("sellerCountryCode")} />
-            </div>
-            <div className="field">
-              <label>Country name</label>
-              <input value={f.sellerCountryName} onChange={set("sellerCountryName")} />
-            </div>
+            <label>Seller name (optional)</label>
+            <input
+              placeholder="Leave blank if unknown — filled in when seller despatches"
+              value={f.sellerName}
+              onChange={set("sellerName")}
+            />
           </div>
 
           {/* ── Order lines ── */}
@@ -322,6 +275,16 @@ export default function OrderCreatePage() {
               <div className="field">
                 <label>Model</label>
                 <input placeholder="ERGO-MESH-BLK" value={f.line1Model} onChange={set("line1Model")} />
+              </div>
+            </div>
+            <div className="field-row">
+              <div className="field">
+                <label>Quantity</label>
+                <input type="number" min="1" value={f.line1Qty} onChange={set("line1Qty")} />
+              </div>
+              <div className="field">
+                <label>Unit code</label>
+                <input placeholder="EA" value={f.line1Unit} onChange={set("line1Unit")} />
               </div>
             </div>
             <div className="field">
@@ -376,6 +339,25 @@ export default function OrderCreatePage() {
                     placeholder="MON-27-QHD"
                     value={line.model}
                     onChange={(e) => updateLine(i, "model", e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={line.qty}
+                    onChange={(e) => updateLine(i, "qty", e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Unit code</label>
+                  <input
+                    placeholder="EA"
+                    value={line.unit}
+                    onChange={(e) => updateLine(i, "unit", e.target.value)}
                   />
                 </div>
               </div>

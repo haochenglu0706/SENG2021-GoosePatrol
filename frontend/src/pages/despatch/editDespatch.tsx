@@ -20,6 +20,14 @@ import styles from "./style/edit.module.css";
 
 type FieldErrors = Record<string, string>;
 
+type EditLine = {
+  id: string;
+  qty: string;
+  unit: string;
+  itemName: string;
+  itemDesc: string;
+};
+
 type FormState = {
   documentId: string;
   receiverId: string;
@@ -51,12 +59,6 @@ type FormState = {
   delivCountry: string;
   periodStart: string;
   periodEnd: string;
-  // First despatch line (editable)
-  lineId: string;
-  lineQty: string;
-  lineUnit: string;
-  lineItemName: string;
-  lineItemDesc: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -74,8 +76,8 @@ function docId(d: DespatchAdviceRow): string {
   return d.documentId ?? d.documentID ?? "";
 }
 
-/** Map API response → form state */
-function toFormState(d: DespatchAdviceRow): FormState {
+/** Map API response → form state + lines */
+function toFormState(d: DespatchAdviceRow): { form: FormState; lines: EditLine[] } {
   const sup = d.despatchSupplierParty?.party;
   const supAddr = sup?.postalAddress ?? {};
   const contact = sup?.contact ?? {};
@@ -85,51 +87,59 @@ function toFormState(d: DespatchAdviceRow): FormState {
   const delivery = (ship?.delivery ?? {}) as Record<string, unknown>;
   const delivAddr = (delivery.deliveryAddress ?? {}) as Record<string, string>;
   const period = (delivery.requestedDeliveryPeriod ?? {}) as Record<string, string>;
-  const line0 = d.despatchLines?.[0];
+
+  const lines: EditLine[] = (d.despatchLines ?? []).map((l, i) => ({
+    id: l.id ?? `LINE-${i + 1}`,
+    qty: String(l.deliveredQuantity ?? 1),
+    unit: l.deliveredQuantityUnitCode ?? "EA",
+    itemName: l.item?.name ?? "",
+    itemDesc: l.item?.description ?? "",
+  }));
+
+  if (lines.length === 0) {
+    lines.push({ id: "LINE-1", qty: "1", unit: "EA", itemName: "", itemDesc: "" });
+  }
 
   return {
-    documentId: docId(d),
-    receiverId: d.receiverId ?? "",
-    issueDate: d.issueDate ?? "",
-    documentStatusCode: d.documentStatusCode ?? "",
-    orderRefId: d.orderReference?.id ?? "",
-    note: d.note ?? "",
-    supplierName: sup?.name ?? "",
-    supplierStreet: (supAddr.streetName as string) ?? "",
-    supplierCity: (supAddr.cityName as string) ?? "",
-    supplierZone: (supAddr.postalZone as string) ?? "",
-    supplierCountry: (supAddr.countryIdentificationCode as string) ?? "",
-    contactName: (contact.name as string) ?? "",
-    contactPhone: (contact.telephone as string) ?? "",
-    contactEmail: (contact.email as string) ?? "",
-    customerName: cust?.name ?? "",
-    customerStreet: (custAddr.streetName as string) ?? "",
-    customerCity: (custAddr.cityName as string) ?? "",
-    customerZone: (custAddr.postalZone as string) ?? "",
-    customerCountry: (custAddr.countryIdentificationCode as string) ?? "",
-    shipId: (ship?.id as string) ?? "",
-    consId: (ship?.consignmentId as string) ?? "",
-    delivStreet: delivAddr.streetName ?? "",
-    delivCity: delivAddr.cityName ?? "",
-    delivZone: delivAddr.postalZone ?? "",
-    delivCountry: delivAddr.countryIdentificationCode ?? "",
-    periodStart: period.startDate ?? "",
-    periodEnd: period.endDate ?? "",
-    lineId: line0?.id ?? "LINE-1",
-    lineQty: String(line0?.deliveredQuantity ?? ""),
-    lineUnit: line0?.deliveredQuantityUnitCode ?? "EA",
-    lineItemName: line0?.item?.name ?? "",
-    lineItemDesc: line0?.item?.description ?? "",
+    form: {
+      documentId: docId(d),
+      receiverId: d.receiverId ?? "",
+      issueDate: d.issueDate ?? "",
+      documentStatusCode: d.documentStatusCode ?? "",
+      orderRefId: d.orderReference?.id ?? "",
+      note: d.note ?? "",
+      supplierName: sup?.name ?? "",
+      supplierStreet: (supAddr.streetName as string) ?? "",
+      supplierCity: (supAddr.cityName as string) ?? "",
+      supplierZone: (supAddr.postalZone as string) ?? "",
+      supplierCountry: (supAddr.countryIdentificationCode as string) ?? "",
+      contactName: (contact.name as string) ?? "",
+      contactPhone: (contact.telephone as string) ?? "",
+      contactEmail: (contact.email as string) ?? "",
+      customerName: cust?.name ?? "",
+      customerStreet: (custAddr.streetName as string) ?? "",
+      customerCity: (custAddr.cityName as string) ?? "",
+      customerZone: (custAddr.postalZone as string) ?? "",
+      customerCountry: (custAddr.countryIdentificationCode as string) ?? "",
+      shipId: (ship?.id as string) ?? "",
+      consId: (ship?.consignmentId as string) ?? "",
+      delivStreet: delivAddr.streetName ?? "",
+      delivCity: delivAddr.cityName ?? "",
+      delivZone: delivAddr.postalZone ?? "",
+      delivCountry: delivAddr.countryIdentificationCode ?? "",
+      periodStart: period.startDate ?? "",
+      periodEnd: period.endDate ?? "",
+    },
+    lines,
   };
 }
 
-/** Build the PUT body from current form + original despatch (preserves extra lines) */
+/** Build the PUT body from current form + lines */
 function buildPutBody(
   f: FormState,
+  lines: EditLine[],
   original: DespatchAdviceRow
 ): Record<string, unknown> {
-  const extraLines = (original.despatchLines ?? []).slice(1);
-
   return {
     documentId: f.documentId,
     senderId: original.senderId,
@@ -183,19 +193,16 @@ function buildPutBody(
         },
       },
     },
-    despatchLines: [
-      {
-        id: f.lineId,
-        deliveredQuantity: parseFloat(f.lineQty) || 1,
-        deliveredQuantityUnitCode: f.lineUnit,
-        orderLineReference: {
-          lineId: "1",
-          orderReference: { id: f.orderRefId },
-        },
-        item: { name: f.lineItemName, description: f.lineItemDesc },
+    despatchLines: lines.map((l, i) => ({
+      id: l.id || `LINE-${i + 1}`,
+      deliveredQuantity: parseFloat(l.qty) || 1,
+      deliveredQuantityUnitCode: l.unit || "EA",
+      orderLineReference: {
+        lineId: String(i + 1),
+        orderReference: { id: f.orderRefId },
       },
-      ...extraLines,
-    ],
+      item: { name: l.itemName, description: l.itemDesc || l.itemName },
+    })),
   };
 }
 
@@ -227,9 +234,6 @@ function validate(f: FormState): FieldErrors {
   req("delivCountry", "Delivery country");
   req("periodStart", "Delivery window start");
   req("periodEnd", "Delivery window end");
-  req("lineItemName", "Item name");
-  req("lineItemDesc", "Item description");
-  req("lineQty", "Quantity");
 
   if (f.supplierCountry && f.supplierCountry.length !== 2)
     errs.supplierCountry = "Must be exactly 2 characters (e.g. AU)";
@@ -237,10 +241,6 @@ function validate(f: FormState): FieldErrors {
     errs.customerCountry = "Must be exactly 2 characters (e.g. AU)";
   if (f.delivCountry && f.delivCountry.length !== 2)
     errs.delivCountry = "Must be exactly 2 characters (e.g. AU)";
-
-  const qty = parseFloat(f.lineQty);
-  if (f.lineQty && (isNaN(qty) || qty <= 0))
-    errs.lineQty = "Must be a positive number";
 
   if (f.periodStart && f.periodEnd && f.periodEnd < f.periodStart)
     errs.periodEnd = "End date must be after start date";
@@ -260,6 +260,8 @@ export default function EditDespatchPage() {
   const [original, setOriginal] = useState<DespatchAdviceRow | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
   const [initialForm, setInitialForm] = useState<FormState | null>(null);
+  const [lines, setLines] = useState<EditLine[]>([]);
+  const [initialLines, setInitialLines] = useState<EditLine[]>([]);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchErr, setFetchErr] = useState("");
 
@@ -283,9 +285,11 @@ export default function EditDespatchPage() {
         sessionId
       );
       setOriginal(data);
-      const fs = toFormState(data);
+      const { form: fs, lines: ls } = toFormState(data);
       setForm(fs);
       setInitialForm(fs);
+      setLines(ls);
+      setInitialLines(ls);
     } catch (e) {
       const msg = (e as Error).message;
       if (msg.includes("404") || msg.toLowerCase().includes("not found"))
@@ -306,10 +310,12 @@ export default function EditDespatchPage() {
   // ── Dirty tracking ──────────────────────────────────────────────────────
   const changedFields = useMemo(() => {
     if (!form || !initialForm) return 0;
-    return (Object.keys(form) as (keyof FormState)[]).filter(
+    const formChanges = (Object.keys(form) as (keyof FormState)[]).filter(
       (k) => form[k] !== initialForm[k]
     ).length;
-  }, [form, initialForm]);
+    const linesChanged = JSON.stringify(lines) !== JSON.stringify(initialLines) ? 1 : 0;
+    return formChanges + linesChanged;
+  }, [form, initialForm, lines, initialLines]);
 
   // ── Field helpers ───────────────────────────────────────────────────────
   const set =
@@ -333,7 +339,7 @@ export default function EditDespatchPage() {
     setSubmitErr("");
     setSubmitLoading(true);
     try {
-      const body = buildPutBody(form, original);
+      const body = buildPutBody(form, lines, original);
       await apiFetch(
         `/despatch-advices/${encodeURIComponent(despatchId)}`,
         { method: "PUT", body: JSON.stringify(body) },
@@ -708,28 +714,81 @@ export default function EditDespatchPage() {
             </div>
           ) : null}
 
-          {/* ── First despatch line ── */}
-          <div className="section-label">
-            Despatch line (line 1
-            {(original?.despatchLines?.length ?? 0) > 1
-              ? ` of ${original?.despatchLines?.length} — additional lines preserved`
-              : ""}
-            )
-          </div>
-          <div className={styles.lineEditor}>
-            <div className={styles.lineEditorHeader}>
-              <span className={styles.lineEditorTitle}>Line {form?.lineId ?? "1"}</span>
+          {/* ── Despatch lines ── */}
+          <div className="section-label">Despatch lines</div>
+          {lines.map((line, i) => (
+            <div key={i} className={styles.lineEditor}>
+              <div className={styles.lineEditorHeader}>
+                <span className={styles.lineEditorTitle}>Line {i + 1}</span>
+                {!locked && lines.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    style={{ fontSize: 10, padding: "3px 8px" }}
+                    onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>Item name *</label>
+                  <input
+                    value={line.itemName}
+                    onChange={(e) => setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, itemName: e.target.value } : l))}
+                    readOnly={locked}
+                  />
+                </div>
+                <div className="field">
+                  <label>Description</label>
+                  <input
+                    value={line.itemDesc}
+                    onChange={(e) => setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, itemDesc: e.target.value } : l))}
+                    readOnly={locked}
+                  />
+                </div>
+              </div>
+              <div className="field-row-3">
+                <div className="field">
+                  <label>Quantity *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={line.qty}
+                    onChange={(e) => setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, qty: e.target.value } : l))}
+                    readOnly={locked}
+                  />
+                </div>
+                <div className="field">
+                  <label>Unit code</label>
+                  <input
+                    value={line.unit}
+                    onChange={(e) => setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, unit: e.target.value } : l))}
+                    readOnly={locked}
+                  />
+                </div>
+                <div className="field">
+                  <label>Line ID</label>
+                  <input
+                    value={line.id}
+                    onChange={(e) => setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, id: e.target.value } : l))}
+                    readOnly={locked}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="field-row">
-              <Field id="edit-lineItem" label="Item name *" fkey="lineItemName" placeholder="Widget" />
-              <Field id="edit-lineDesc" label="Description *" fkey="lineItemDesc" placeholder="A standard widget" />
-            </div>
-            <div className="field-row-3">
-              <Field id="edit-lineQty" label="Quantity *" fkey="lineQty" type="number" placeholder="10" />
-              <Field id="edit-lineUnit" label="Unit code" fkey="lineUnit" placeholder="EA" />
-              <Field id="edit-lineId" label="Line ID" fkey="lineId" placeholder="LINE-1" />
-            </div>
-          </div>
+          ))}
+          {!locked && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: 6 }}
+              onClick={() => setLines((prev) => [...prev, { id: `LINE-${prev.length + 1}`, qty: "1", unit: "EA", itemName: "", itemDesc: "" }])}
+            >
+              + Add another line
+            </button>
+          )}
 
           {/* ── Actions ── */}
           <div className={styles.actions}>
