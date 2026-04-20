@@ -6,6 +6,7 @@ import * as invoices from "./routes/invoices.js";
 import * as health from "./routes/health.js";
 import * as docs from "./routes/docs.js";
 import * as translate from "./routes/translate.js";
+import * as email from "./routes/email.js";
 import { CORS_HEADERS } from "./cors.js";
 import openapiYaml from "../swagger.yaml";
 
@@ -93,6 +94,12 @@ export async function route(event: any) {
     return despatch.exportDespatchAdviceAsUblXml(despatchUblMatch[1]);
   }
 
+  // POST /despatch-advices/{despatchId}/email — send UBL via email
+  const despatchEmailMatch = path.match(/^\/despatch-advices\/([^/]+)\/email$/);
+  if (method === "POST" && despatchEmailMatch) {
+    return email.emailDespatchUbl(event, despatchEmailMatch[1]);
+  }
+
   // Despatch advice item routes (/despatch-advices/{documentId})
 
   if (path.startsWith("/despatch-advices/")) {
@@ -147,6 +154,16 @@ export async function route(event: any) {
   const receiptUblMatch = path.match(/^\/receipt-advices\/([^/]+)\/ubl$/);
   if (method === "GET" && receiptUblMatch) {
     return receipt.exportReceiptAdviceAsUblXml(receiptUblMatch[1], event);
+  }
+
+  // POST /receipt-advices/{receiptAdviceId}/email — send UBL via email
+  const receiptEmailMatch = path.match(/^\/receipt-advices\/([^/]+)\/email$/);
+  if (method === "POST" && receiptEmailMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      receiptAdviceId: receiptEmailMatch[1],
+    };
+    return email.emailReceiptUbl(event);
   }
 
   // GET /receipt-advices/{receiptAdviceId}
@@ -247,6 +264,16 @@ export async function route(event: any) {
       invoiceId: invoiceXmlMatch[1],
     };
     return invoices.getInvoiceXml(event);
+  }
+
+  // POST /invoices/{invoiceId}/email — send UBL via email
+  const invoiceEmailMatch = path.match(/^\/invoices\/([^/]+)\/email$/);
+  if (method === "POST" && invoiceEmailMatch) {
+    event.pathParameters = {
+      ...event.pathParameters,
+      invoiceId: invoiceEmailMatch[1],
+    };
+    return email.emailInvoiceUbl(event);
   }
 
   const invoiceIdMatch = path.match(/^\/invoices\/([^/]+)$/);
