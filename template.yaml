@@ -1,3 +1,382 @@
+# AWSTemplateFormatVersion: "2010-09-09"
+# Transform: AWS::Serverless-2016-10-31
+# Description: >
+#   SENG2021-GoosePatrol
+#   SAM Template for Delivery Document Exchange API (uses existing DynamoDB tables)
+
+# Parameters:
+#   ClientsTableName:
+#     Type: String
+#     Default: Clients
+#     Description: Name of the existing Clients DynamoDB table
+#   SessionsTableName:
+#     Type: String
+#     Default: Sessions
+#     Description: Name of the existing Sessions DynamoDB table
+#   DocumentsTableName:
+#     Type: String
+#     Default: DespatchAdvices
+#     Description: Name of the existing documents/despatch DynamoDB table
+#   ReceiptAdvicesTableName:
+#     Type: String
+#     Default: ReceiptAdvices
+#     Description: Name of the existing ReceiptAdvices DynamoDB table
+#   InvoiceRefsTableName:
+#     Type: String
+#     Default: InvoiceReferences
+#     Description: Name of the InvoiceReferences DynamoDB table
+
+# Globals:
+#   Function:
+#     Timeout: 15
+#     Tracing: Active
+#     LoggingConfig:
+#       LogFormat: JSON
+#   Api:
+#     TracingEnabled: true
+#     Cors:
+#       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+#       AllowHeaders: "'Content-Type,sessionId,session-id,Session-Id,orderMsToken,ordermstoken,invoiceToken,invoicetoken,invoiceUserId,invoiceuserid,Authorization'"
+#       AllowOrigin: "'*'"
+
+# Resources:
+#   ApiFunction:
+#     Type: AWS::Serverless::Function
+#     Properties:
+#       CodeUri: src/
+#       Handler: handler.lambdaHandler
+#       Runtime: nodejs20.x
+#       Architectures:
+#         - x86_64
+#       Events:
+#         # Auth routes
+#         RegisterClient:
+#           Type: Api
+#           Properties:
+#             Path: /clients
+#             Method: post
+#         ListClients:
+#           Type: Api
+#           Properties:
+#             Path: /clients
+#             Method: get
+#         CreateSession:
+#           Type: Api
+#           Properties:
+#             Path: /sessions
+#             Method: post
+#         DeleteSession:
+#           Type: Api
+#           Properties:
+#             Path: /sessions/{sessionId}
+#             Method: delete
+#         GetClientIdByUsername:
+#           Type: Api
+#           Properties:
+#             Path: /clients/{username}/client-id
+#             Method: get
+#         ListClientOrders:
+#           Type: Api
+#           Properties:
+#             Path: /clients/{username}/orders
+#             Method: get
+
+#         # DespatchAdvice routes
+#         ListDespatchAdvices:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices
+#             Method: get
+#         CreateDespatchAdvice:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices
+#             Method: post
+#         GetDespatchAdvice:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices/{despatchId}
+#             Method: get
+#         GetDespatchAdviceUbl:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices/{despatchId}/ubl
+#             Method: get
+#         UpdateDespatchAdvice:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices/{despatchId}
+#             Method: put
+#         DeleteDespatchAdvice:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices/{despatchId}
+#             Method: delete
+#         CancelFulfilment:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices/{despatchId}/fulfilment-cancellation
+#             Method: post
+#         #ReceiptAdvice routes
+#         ListReceiptAdvices:
+#           Type: Api
+#           Properties:
+#             Path: /receipt-advices
+#             Method: get
+#         getReceiptAdvice:
+#           Type: Api
+#           Properties:
+#             Path: /receipt-advices/{receiptAdviceId}
+#             Method: get
+#         GetReceiptAdviceUbl:
+#           Type: Api
+#           Properties:
+#             Path: /receipt-advices/{receiptAdviceId}/ubl
+#             Method: get
+#         CreateReceiptAdvice:
+#           Type: Api
+#           Properties:
+#             Path: /despatch-advices/{despatchId}/receipt-advices
+#             Method: post
+#         # Orders routes (proxy to OrderMS v1 API)
+#         ListOrders:
+#           Type: Api
+#           Properties:
+#             Path: /orders
+#             Method: get
+#         CreateOrder:
+#           Type: Api
+#           Properties:
+#             Path: /orders
+#             Method: post
+#         GetOrder:
+#           Type: Api
+#           Properties:
+#             Path: /orders/{orderId}
+#             Method: get
+#         UpdateOrder:
+#           Type: Api
+#           Properties:
+#             Path: /orders/{orderId}
+#             Method: put
+#         DeleteOrder:
+#           Type: Api
+#           Properties:
+#             Path: /orders/{orderId}
+#             Method: delete
+#         GetOrderXml:
+#           Type: Api
+#           Properties:
+#             Path: /orders/{orderId}/xml
+#             Method: get
+
+#         # Invoice routes (kept in sync with src/router.ts)
+#         # Added so API Gateway recognizes invoice endpoints and applies CORS.
+#         ListInvoices:
+#           Type: Api
+#           Properties:
+#             Path: /invoices
+#             Method: get
+#         GetInvoice:
+#           Type: Api
+#           Properties:
+#             Path: /invoices/{invoiceId}
+#             Method: get
+#         CreateInvoice:
+#           Type: Api
+#           Properties:
+#             Path: /invoices
+#             Method: post
+#         DeleteInvoice:
+#           Type: Api
+#           Properties:
+#             Path: /invoices/{invoiceId}
+#             Method: delete
+#         TransformInvoice:
+#           Type: Api
+#           Properties:
+#             Path: /invoices/{invoiceId}/transform
+#             Method: post
+#         ValidateInvoice:
+#           Type: Api
+#           Properties:
+#             Path: /invoices/{invoiceId}/validate
+#             Method: post
+#         UpdateInvoiceStatus:
+#           Type: Api
+#           Properties:
+#             Path: /invoices/{invoiceId}/status
+#             Method: put
+#         GetInvoiceXml:
+#           Type: Api
+#           Properties:
+#             Path: /invoices/{invoiceId}/xml
+#             Method: get
+#         SaveInvoiceReference:
+#           Type: Api
+#           Properties:
+#             Path: /invoice-references
+#             Method: post
+#         ListReceivedInvoiceReferences:
+#           Type: Api
+#           Properties:
+#             Path: /invoice-references/received
+#             Method: get
+
+#         # DeepL XML translation (see src/routes/translate.ts)
+#         TranslateDocument:
+#           Type: Api
+#           Properties:
+#             Path: /translate
+#             Method: post
+
+#         # documentation and other
+#         GetHealth:
+#           Type: Api
+#           Properties:
+#             Path: /health
+#             Method: get
+
+#         GetDocs:
+#           Type: Api
+#           Properties:
+#             Path: /docs
+#             Method: get
+
+#         GetSwaggerYaml:
+#           Type: Api
+#           Properties:
+#             Path: /swagger.yaml
+#             Method: get
+#         OptionsSwaggerYaml:
+#           Type: Api
+#           Properties:
+#             Path: /swagger.yaml
+#             Method: options
+#         OptionsAll:
+#           Type: Api
+#           Properties:
+#             Path: /{proxy+}
+#             Method: options
+            
+#       Environment:
+#         Variables:
+#           TABLE_NAME: !Ref DocumentsTableName
+#           CLIENTS_TABLE_NAME: !Ref ClientsTableName
+#           SESSIONS_TABLE_NAME: !Ref SessionsTableName
+#           DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
+#           RECEIPT_ADVICES_TABLE_NAME: !Ref ReceiptAdvicesTableName
+#           INVOICE_REFS_TABLE_NAME: !Ref InvoiceRefsTableName
+#           DEEPL_API_KEY: "89d88353-943e-414f-904e-00d312f3870d:fx"
+#           DEEPL_API_URL: "https://api-free.deepl.com/v2"
+#       Policies:
+#         - DynamoDBCrudPolicy:
+#             TableName: !Ref DocumentsTableName
+#         - DynamoDBCrudPolicy:
+#             TableName: !Ref ClientsTableName
+#         - DynamoDBCrudPolicy:
+#             TableName: !Ref SessionsTableName
+#         - DynamoDBCrudPolicy:
+#             TableName: !Ref ReceiptAdvicesTableName
+#         - DynamoDBCrudPolicy:
+#             TableName: !Ref InvoiceRefsTableName
+#     Metadata:
+#       BuildMethod: esbuild
+#       BuildProperties:
+#         Minify: true
+#         Target: es2020
+#         Sourcemap: true
+#         # Bundle repo-root swagger.yaml as a string (no post-build cp needed)
+#         Loader:
+#           - .yaml=text
+#         EntryPoints:
+#           - handler.ts
+
+#   # ReceiptAdvices table — stores receipt advice documents linked to despatch advices.
+#   # receiptAdviceId is the partition key.
+#   # GSIs support lookup by despatchAdviceId and by submitterId.
+#   DocumentsTable:
+#     Type: AWS::DynamoDB::Table
+#     Properties:
+#       TableName: StackfeedDocuments
+#       BillingMode: PAY_PER_REQUEST
+#       SSESpecification:
+#         SSEEnabled: true #Encrypts the dynamoDB
+#       AttributeDefinitions:
+#         - AttributeName: receiptAdviceId
+#           AttributeType: S
+#         - AttributeName: despatchAdviceId
+#           AttributeType: S
+#         - AttributeName: submitterId
+#           AttributeType: S
+#       KeySchema:
+#         - AttributeName: receiptAdviceId
+#           KeyType: HASH
+#       GlobalSecondaryIndexes:
+#         - IndexName: despatch-advice-index
+#           KeySchema:
+#             - AttributeName: despatchAdviceId
+#               KeyType: HASH
+#           Projection:
+#             ProjectionType: ALL
+#         - IndexName: submitter-index
+#           KeySchema:
+#             - AttributeName: submitterId
+#               KeyType: HASH
+#           Projection:
+#             ProjectionType: ALL
+
+#   InvoiceRefsTable:
+#     Type: AWS::DynamoDB::Table
+#     Properties:
+#       TableName: !Ref InvoiceRefsTableName
+#       BillingMode: PAY_PER_REQUEST
+#       SSESpecification:
+#         SSEEnabled: true
+#       AttributeDefinitions:
+#         - AttributeName: invoiceId
+#           AttributeType: S
+#         - AttributeName: receiverId
+#           AttributeType: S
+#         - AttributeName: senderId
+#           AttributeType: S
+#       KeySchema:
+#         - AttributeName: invoiceId
+#           KeyType: HASH
+#       GlobalSecondaryIndexes:
+#         - IndexName: receiver-index
+#           KeySchema:
+#             - AttributeName: receiverId
+#               KeyType: HASH
+#           Projection:
+#             ProjectionType: ALL
+#         - IndexName: sender-index
+#           KeySchema:
+#             - AttributeName: senderId
+#               KeyType: HASH
+#           Projection:
+#             ProjectionType: ALL
+
+# Outputs:
+#   ApiEndpoint:
+#     Description: API Gateway endpoint URL for Prod stage
+#     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/"
+#   ApiFunctionArn:
+#     Description: API Lambda Function ARN
+#     Value: !GetAtt ApiFunction.Arn
+#   ClientsTableName:
+#     Description: Clients DynamoDB table in use
+#     Value: !Ref ClientsTableName
+#   SessionsTableName:
+#     Description: Sessions DynamoDB table in use
+#     Value: !Ref SessionsTableName
+#   DocumentsTableName:
+#     Description: DespatchAdvices DynamoDB table in use
+#     Value: !Ref DocumentsTableName
+#   ReceiptAdvicesTableName:
+#     Description: ReceiptAdvices DynamoDB table in use
+#     Value: !Ref ReceiptAdvicesTableName
+
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
@@ -25,6 +404,13 @@ Parameters:
     Type: String
     Default: InvoiceReferences
     Description: Name of the InvoiceReferences DynamoDB table
+  # ── Email ────────────────────────────────────────────────────────────────
+  SesSenderEmail:
+    Type: String
+    Default: noreply@einvoice-goosepatrol.example.com
+    Description: >
+      SES-verified "From" address used when emailing UBL documents.
+      The address (or its domain) must be verified in AWS SES before deploying.
 
 Globals:
   Function:
@@ -117,6 +503,13 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}/fulfilment-cancellation
             Method: post
+        # ── Email: Despatch Advice ──────────────────────────────────────────
+        EmailDespatchAdviceUbl:
+          Type: Api
+          Properties:
+            Path: /despatch-advices/{despatchId}/email
+            Method: post
+
         #ReceiptAdvice routes
         ListReceiptAdvices:
           Type: Api
@@ -138,6 +531,13 @@ Resources:
           Properties:
             Path: /despatch-advices/{despatchId}/receipt-advices
             Method: post
+        # ── Email: Receipt Advice ───────────────────────────────────────────
+        EmailReceiptAdviceUbl:
+          Type: Api
+          Properties:
+            Path: /receipt-advices/{receiptAdviceId}/email
+            Method: post
+
         # Orders routes (proxy to OrderMS v1 API)
         ListOrders:
           Type: Api
@@ -212,6 +612,12 @@ Resources:
           Properties:
             Path: /invoices/{invoiceId}/xml
             Method: get
+        # ── Email: Invoice ──────────────────────────────────────────────────
+        EmailInvoiceUbl:
+          Type: Api
+          Properties:
+            Path: /invoices/{invoiceId}/email
+            Method: post
         SaveInvoiceReference:
           Type: Api
           Properties:
@@ -269,6 +675,9 @@ Resources:
           INVOICE_REFS_TABLE_NAME: !Ref InvoiceRefsTableName
           DEEPL_API_KEY: "89d88353-943e-414f-904e-00d312f3870d:fx"
           DEEPL_API_URL: "https://api-free.deepl.com/v2"
+          # ── Email ─────────────────────────────────────────────────────────
+          SES_SENDER_EMAIL: !Ref SesSenderEmail
+
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref DocumentsTableName
@@ -280,6 +689,12 @@ Resources:
             TableName: !Ref ReceiptAdvicesTableName
         - DynamoDBCrudPolicy:
             TableName: !Ref InvoiceRefsTableName
+        # ── Grant Lambda permission to send email via SES ──────────────────
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendRawEmail
+              Resource: "*"
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
