@@ -267,6 +267,7 @@ Resources:
           DESPATCH_ADVICES_TABLE_NAME: !Ref DocumentsTableName
           RECEIPT_ADVICES_TABLE_NAME: !Ref ReceiptAdvicesTableName
           INVOICE_REFS_TABLE_NAME: !Ref InvoiceRefsTableName
+          NOTIFICATION_FROM_EMAIL: "bobosibanda35@gmail.com"
           DEEPL_API_KEY: "89d88353-943e-414f-904e-00d312f3870d:fx"
           DEEPL_API_URL: "https://api-free.deepl.com/v2"
       Policies:
@@ -280,6 +281,12 @@ Resources:
             TableName: !Ref ReceiptAdvicesTableName
         - DynamoDBCrudPolicy:
             TableName: !Ref InvoiceRefsTableName
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: "*"
     Metadata:
       BuildMethod: esbuild
       BuildProperties:

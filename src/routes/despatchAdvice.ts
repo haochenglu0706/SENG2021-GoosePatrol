@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from "uuid";
 import { dynamo, DESPATCH_ADVICES_TABLE } from "../db.js";
 import { verifySession } from "./auth.js";
 import { CORS_HEADERS } from "../cors.js";
+import { notifyDocumentEvent } from "../services/notificationService.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// ////////////////////// Types (from swagger.yaml) ////////////////////////////
@@ -703,6 +704,20 @@ export async function createDespatchAdvice(event: any) {
                 ConditionExpression: "attribute_not_exists(documentId)",
             })
         );
+
+        if (ownerClientId && item.receiverId) {
+            void notifyDocumentEvent({
+                sessionClientId: ownerClientId,
+                counterpartyClientId: item.receiverId,
+                documentType: "Despatch Advice",
+                documentId: item.documentId,
+                action: "created",
+                summary: `New despatch advice ${item.documentId} has been created for you.`,
+            }).catch((error) => {
+                console.error("Despatch create notification failed", error);
+            });
+        }
+
         return ok({despatchAdviceId: item.despatchAdviceId}, 201);
     } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
@@ -1311,6 +1326,8 @@ export async function deleteDespatchAdvice(
  */
 export async function cancelFulfilment(event: any, despatchAdviceId: string) {
     try {
+        const sessionClientId = await verifySession(getSessionIdFromEvent(event));
+
         const result = await dynamo.send(
             new GetItemCommand({
                 TableName: DESPATCH_ADVICES_TABLE,
@@ -1320,7 +1337,13 @@ export async function cancelFulfilment(event: any, despatchAdviceId: string) {
 
         if (!result.Item) return notFound("Despatch advice not found");
 
-        const item = unmarshall(result.Item) as { status?: string };
+        const item = unmarshall(result.Item) as {
+            status?: string;
+            senderId?: string;
+            receiverId?: string;
+            documentId?: string;
+            despatchAdviceId?: string;
+        };
 
         if (item.status === "RECEIVED")             return conflict("Despatch advice has already been received");
         if (item.status === "FULFILMENT_CANCELLED") return conflict("Despatch advice has already been cancelled");
@@ -1335,6 +1358,25 @@ export async function cancelFulfilment(event: any, despatchAdviceId: string) {
                 ExpressionAttributeValues: marshall({ ":s": "FULFILMENT_CANCELLED" }),
             })
         );
+
+        if (sessionClientId) {
+            const counterpartyClientId =
+                item.senderId === sessionClientId ? item.receiverId : item.senderId;
+
+            if (counterpartyClientId) {
+                const documentId = item.documentId ?? item.despatchAdviceId ?? despatchAdviceId;
+                void notifyDocumentEvent({
+                    sessionClientId,
+                    counterpartyClientId,
+                    documentType: "Despatch Advice",
+                    documentId,
+                    action: "cancelled",
+                    summary: `Despatch advice ${documentId} has been cancelled.`,
+                }).catch((error) => {
+                    console.error("Despatch cancellation notification failed", error);
+                });
+            }
+        }
 
         return ok({ status: "FULFILMENT_CANCELLED" });
     } catch (err: any) {

@@ -10,6 +10,7 @@ import {
 } from "../db.js";
 import { verifySession } from "./auth.js";
 import { findDespatchAdviceByDocumentId } from "./despatchAdvice.js";
+import { notifyDocumentEvent } from "../services/notificationService.js";
 
 /// /////////////////////////////////////////////////////////////////////////////
 /// Types (aligned with swagger.yaml ReceiptAdviceCreateRequest + nested schemas)
@@ -1186,6 +1187,21 @@ export async function createReceiptAdvice(event: any) {
   } catch (err) {
     console.error("DynamoDB PutItem (ReceiptAdvices) error:", err);
     return internalError(err);
+  }
+
+  const supplierClientId =
+    typeof despatchItem.senderId === "string" ? despatchItem.senderId : undefined;
+  if (supplierClientId) {
+    void notifyDocumentEvent({
+      sessionClientId,
+      counterpartyClientId: supplierClientId,
+      documentType: "Receipt Advice",
+      documentId: despatchAdviceId,
+      action: "received",
+      summary: `Your despatch advice ${despatchAdviceId} has been received.`,
+    }).catch((error) => {
+      console.error("Receipt notification failed", error);
+    });
   }
 
   try {

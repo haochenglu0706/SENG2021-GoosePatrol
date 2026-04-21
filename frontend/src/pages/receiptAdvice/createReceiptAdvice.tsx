@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { TopBar } from "../../components/layout/TopBar";
@@ -100,13 +100,60 @@ function buildReceiptBody(
   };
 }
 
+function buildInvoiceBody(
+  despatch: DespatchAdviceRow,
+  invoiceUserId: string
+): Record<string, unknown> {
+  const today = new Date();
+  const issueDate = today.toISOString().split("T")[0];
+  const dueDate = new Date(today.getTime() + 30 * 86400000).toISOString().split("T")[0];
+
+  return {
+    userId: invoiceUserId,
+    invoiceData: {
+      ProfileID: "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0",
+      IssueDate: issueDate,
+      DueDate: dueDate,
+      OrderReference: { ID: despatch.orderReference?.id ?? undefined },
+      Delivery: {
+        ActualDeliveryDate: despatch.issueDate ?? issueDate,
+      },
+      PaymentMeans: {
+        PaymentMeansCode: "30",
+        PaymentDueDate: dueDate,
+        PayeeFinancialAccount: {
+          Currency: "AUD",
+        },
+      },
+      Supplier: {
+        Name: despatch.despatchSupplierParty?.party?.name ?? "Supplier",
+        ID: despatch.senderId ?? undefined,
+      },
+      Customer: {
+        Name: despatch.deliveryCustomerParty?.party?.name ?? "Customer",
+        ID: despatch.receiverId ?? undefined,
+      },
+      LegalMonetaryTotal: {
+        Currency: "AUD",
+        LineExtensionAmount: 0,
+        TaxExclusiveAmount: 0,
+        TaxInclusiveAmount: 0,
+        AllowanceTotalAmount: 0,
+        ChargeTotalAmount: 0,
+        PrepaidAmount: 0,
+        PayableAmount: 0,
+      },
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function CreateReceiptAdvicePage() {
   const navigate = useNavigate();
-  const { clientId, sessionId } = useAuth();
+  const { clientId, sessionId, invoiceToken, invoiceUserId } = useAuth();
 
   const [despatches, setDespatches] = useState<DespatchAdviceRow[]>([]);
   const [loadingDespatches, setLoadingDespatches] = useState(false);
@@ -116,6 +163,9 @@ export default function CreateReceiptAdvicePage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [invoiceStatus, setInvoiceStatus] = useState<"idle" | "generating" | "done" | "failed">("idle");
+  const [emailStatus, setEmailStatus] = useState<"sent" | "failed" | "unknown">("unknown");
+  const autoInvoiceTriggeredRef = useRef(false);
 
   // Load receivable despatches — rows where I am the receiver and not yet received/cancelled
   const loadDespatches = useCallback(async () => {
@@ -148,6 +198,9 @@ export default function CreateReceiptAdvicePage() {
     if (!selected || !clientId || !sessionId) return;
     setErr("");
     setLoading(true);
+    autoInvoiceTriggeredRef.current = false;
+    setInvoiceStatus("idle");
+    setEmailStatus("unknown");
     try {
       const body = buildReceiptBody(selected, clientId);
       const res = await apiFetch<CreatedResult>(
@@ -155,8 +208,59 @@ export default function CreateReceiptAdvicePage() {
         { method: "POST", body: JSON.stringify(body) },
         sessionId
       );
-      rememberReceiptId(clientId, res.receiptAdviceId);
       setCreatedId(res.receiptAdviceId);
+      rememberReceiptId(clientId, res.receiptAdviceId);
+
+      if (
+        autoInvoiceTriggeredRef.current ||
+        !invoiceToken ||
+        !invoiceUserId
+      ) {
+        return;
+      }
+
+      autoInvoiceTriggeredRef.current = true;
+      setInvoiceStatus("generating");
+
+      try {
+        const invoiceRes = await apiFetch<{ invoiceId?: string }>(
+          "/invoices",
+          {
+            method: "POST",
+            headers: {
+              invoiceToken,
+              invoiceUserId,
+            },
+            body: JSON.stringify(buildInvoiceBody(selected, invoiceUserId)),
+          },
+          sessionId
+        );
+
+        if (!invoiceRes.invoiceId) {
+          throw new Error("Invoice API did not return an invoiceId");
+        }
+
+        await apiFetch(
+          "/invoice-references",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              invoiceId: invoiceRes.invoiceId,
+              senderId: clientId,
+              receiverId: selected.senderId,
+              despatchAdviceId: selected.despatchAdviceId,
+            }),
+          },
+          sessionId
+        );
+
+        setInvoiceStatus("done");
+        setEmailStatus("sent");
+      } catch (invoiceError) {
+        console.warn("Auto invoice generation failed", invoiceError);
+        setInvoiceStatus("failed");
+        setEmailStatus("failed");
+      }
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -194,6 +298,21 @@ export default function CreateReceiptAdvicePage() {
               <div className={styles.successId}>
                 Receipt Advice ID: <strong>{createdId}</strong>
               </div>
+              {invoiceStatus === "generating" && (
+                <div className="alert alert-info">⚙ Generating invoice automatically…</div>
+              )}
+              {invoiceStatus === "done" && (
+                <div className="alert alert-ok">✅ Invoice auto-generated and sent to supplier.</div>
+              )}
+              {invoiceStatus === "failed" && (
+                <div className="alert alert-err">
+                  ⚠ Receipt confirmed, but invoice generation failed. You can create it manually.
+                  <Link to="/app/invoices/create"> Create Invoice →</Link>
+                </div>
+              )}
+              {emailStatus === "failed" && (
+                <div className="alert alert-info">Notification status unknown. Receipt remains confirmed.</div>
+              )}
               <div className={styles.actions} style={{ justifyContent: "center", marginTop: 20 }}>
                 <button
                   type="button"
@@ -208,6 +327,9 @@ export default function CreateReceiptAdvicePage() {
                   onClick={() => {
                     setCreatedId(null);
                     setSelected(null);
+                    setInvoiceStatus("idle");
+                    setEmailStatus("unknown");
+                    autoInvoiceTriggeredRef.current = false;
                     void loadDespatches();
                   }}
                 >
