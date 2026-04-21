@@ -455,6 +455,7 @@ export default function DespatchViewPage() {
           onCreated={() => {
             void load();
             void refreshReceipts();
+            setToast("Receipt confirmed and invoice auto-generated (if invoice token is active)");
           }}
         />
       ) : null}

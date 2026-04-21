@@ -3,6 +3,7 @@ import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { CORS_HEADERS } from "../cors.js";
 import { dynamo, INVOICE_REFS_TABLE } from "../db.js";
 import { verifySession } from "./auth.js";
+import { notifyDocumentEvent } from "../services/notificationService.js";
 
 const INVOICE_BASE =
   process.env.INVOICE_BASE_URL ?? "http://3.106.79.128:3000";
@@ -49,7 +50,7 @@ function badGateway(message: string) {
 }
 
 async function authorise(event: any): Promise<
-  | { ok: true; invoiceToken: string | undefined }
+  | { ok: true; invoiceToken: string | undefined; sessionClientId: string }
   | { ok: false; response: { statusCode: number; headers: any; body: string } }
 > {
   const sessionId = getSessionId(event);
@@ -57,7 +58,45 @@ async function authorise(event: any): Promise<
   if (!sessionClientId) {
     return { ok: false, response: unauthorized("Invalid or missing session") };
   }
-  return { ok: true, invoiceToken: getInvoiceToken(event) };
+  return { ok: true, invoiceToken: getInvoiceToken(event), sessionClientId };
+}
+
+function extractReceiverClientId(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+
+  const topLevel = body as { receiverId?: unknown };
+  if (typeof topLevel.receiverId === "string" && topLevel.receiverId.trim().length > 0) {
+    return topLevel.receiverId.trim();
+  }
+
+  const nested = body as {
+    invoiceData?: {
+      Customer?: {
+        ID?: unknown;
+      };
+    };
+  };
+  const customerId = nested.invoiceData?.Customer?.ID;
+  if (typeof customerId === "string" && customerId.trim().length > 0) {
+    return customerId.trim();
+  }
+
+  return undefined;
+}
+
+function extractInvoiceId(responseBody: string): string | undefined {
+  try {
+    const parsed = JSON.parse(responseBody) as { invoiceId?: unknown; id?: unknown };
+    if (typeof parsed.invoiceId === "string" && parsed.invoiceId.trim().length > 0) {
+      return parsed.invoiceId.trim();
+    }
+    if (typeof parsed.id === "string" && parsed.id.trim().length > 0) {
+      return parsed.id.trim();
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
 }
 
 async function proxy(
@@ -202,10 +241,29 @@ export async function createInvoice(event: any) {
   }
   if (body === undefined) return badRequest("Request body is required");
 
-  return proxy("POST", "/invoices", {
+  const response = await proxy("POST", "/invoices", {
     body,
     invoiceToken: auth.invoiceToken,
   });
+
+  if (response.statusCode === 200 || response.statusCode === 201) {
+    const counterpartyClientId = extractReceiverClientId(body);
+    if (counterpartyClientId) {
+      const invoiceId = extractInvoiceId(response.body) ?? "new-invoice";
+      void notifyDocumentEvent({
+        sessionClientId: auth.sessionClientId,
+        counterpartyClientId,
+        documentType: "Invoice",
+        documentId: invoiceId,
+        action: "created",
+        summary: `A new invoice ${invoiceId} has been created for you.`,
+      }).catch((error) => {
+        console.error("Invoice notification failed", error);
+      });
+    }
+  }
+
+  return response;
 }
 
 // ---------------------------------------------------------------------------
